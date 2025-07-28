@@ -3,6 +3,7 @@ import { useState, FormEvent, ChangeEvent } from "react";
 function App(): JSX.Element {
 	const [email, setEmail] = useState<string>("");
 	const [message, setMessage] = useState<string>("");
+	const [loading, setLoading] = useState<boolean>(false);
 
 	const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -11,6 +12,7 @@ function App(): JSX.Element {
 			return;
 		}
 
+		setLoading(true);
 		try {
 			const res = await fetch("/api/waitlist", {
 				method: "POST",
@@ -32,6 +34,8 @@ function App(): JSX.Element {
 			}
 		} catch (err) {
 			setMessage("Network error. Please try again later.");
+		} finally {
+			setLoading(false);
 		}
 	};
 
@@ -100,12 +104,36 @@ function App(): JSX.Element {
 							value={email}
 							onChange={handleEmailChange}
 							className="bg-[#1c1c1c] border border-[#2a2a2a] text-[#e2e2e2] py-3 px-4 rounded-lg text-base w-full focus:outline-none focus:border-[#f2f2f2] transition-colors"
+							disabled={loading}
 						/>
 						<button
 							type="submit"
-							className="bg-white text-black py-3 px-6 rounded-lg font-medium text-base hover:bg-[#dcdcdc] focus:outline-none transition-colors whitespace-nowrap cursor-pointer"
+							className="bg-white text-black py-3 px-6 rounded-lg font-medium text-base hover:bg-[#dcdcdc] focus:outline-none transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center"
+							disabled={loading}
 						>
-							Join the Waitlist &rarr;
+							{loading ? (
+								<svg
+									className="animate-spin mr-2 h-5 w-5 text-black"
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+								>
+									<circle
+										className="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										strokeWidth="4"
+									></circle>
+									<path
+										className="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+									></path>
+								</svg>
+							) : null}
+							{loading ? "Joining..." : "Join the Waitlist →"}
 						</button>
 					</form>
 					{message && (
