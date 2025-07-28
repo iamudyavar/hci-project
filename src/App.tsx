@@ -1,29 +1,4 @@
-import { useState, FC, FormEvent, ChangeEvent } from "react";
-
-const GitHubIcon: FC = () => (
-	<svg height="24" viewBox="0 0 16 16" fill="currentColor" width="24">
-		<path
-			fillRule="evenodd"
-			d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
-		></path>
-	</svg>
-);
-const XIcon: FC = () => (
-	<svg height="24" viewBox="0 0 1200 1227" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-		<path
-			d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6902H306.615L611.412 515.685L658.88 583.579L1055.08 1150.31H892.476L569.165 687.854V687.828Z"
-			fill="currentColor"
-		/>
-	</svg>
-);
-const DiscordIcon: FC = () => (
-	<svg height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-		<path
-			d="M20.32,3.37a21.2,21.2,0,0,0-4.88-1.3,19.33,19.33,0,0,0-1.23.63,18.3,18.3,0,0,0-4.47,0,18.5,18.5,0,0,0-1.23-.63A21.13,21.13,0,0,0,3.68,3.37a21.54,21.54,0,0,0-1.5,8.17c0,4.6,3.12,8.6,7.22,9.9a16,16,0,0,0,2.1.42,1,1,0,0,0,.84-.2,1,1,0,0,0,.19-.84,14.62,14.62,0,0,1-.52-2.11,1,1,0,0,1,.18-.78,1,1,0,0,1,.79-.38h.06a1,1,0,0,1,.78.38,1,1,0,0,1,.18.78,13.1,13.1,0,0,1-.52,2.11,1,1,0,0,0,.19.84,1,1,0,0,0,.84.2,16.29,16.29,0,0,0,2.1-.42c4.1-1.3,7.22-5.3,7.22-9.9A21.57,21.57,0,0,0,20.32,3.37ZM8.43,13.82a2,2,0,0,1-2.09-2,2,2,0,0,1,2.09-2,2,2,0,0,1,0,4Zm7.14,0a2,2,0,0,1-2.09-2,2,2,0,1,1,2.09,2Z"
-			fill="currentColor"
-		/>
-	</svg>
-);
+import { useState, FormEvent, ChangeEvent } from "react";
 
 function App(): JSX.Element {
 	const [email, setEmail] = useState<string>("");
@@ -78,13 +53,13 @@ function App(): JSX.Element {
 								strokeLinejoin="round"
 							/>
 						</svg>
-						<span>OpenGames</span>
+						<span>NoPlace Games</span>
 					</div>
 				</header>
 
 				<main className="hero flex-grow flex flex-col justify-center items-center text-center py-16 md:py-24">
 					<h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-[#f2f2f2] leading-tight mb-6 tracking-tighter">
-						The Open Source
+						The Ultimate
 						<br />
 						<span className="highlight inline-block bg-[#ffe082] text-[#1a1a1a] py-1 px-4 rounded-lg transform -rotate-2 mt-2">
 							Games Marketplace
@@ -150,81 +125,36 @@ function App(): JSX.Element {
 										strokeLinejoin="round"
 									/>
 								</svg>
-								<span>OpenGames</span>
+								<span>NoPlace Games</span>
 							</div>
 							<p className="leading-relaxed mb-4">
-								The open source games marketplace that gets the job done. Simple, powerful,
-								and works on any platform.
+								The games marketplace that gets the job done. Simple, powerful, and works on
+								any platform.
 							</p>
 							<div className="social-links flex gap-4">
-								<a
-									href="#"
-									aria-label="GitHub"
-									className="hover:text-[#f2f2f2] transition-colors"
-								>
-									<GitHubIcon />
-								</a>
 								<a
 									href="#"
 									aria-label="X (formerly Twitter)"
 									className="hover:text-[#f2f2f2] transition-colors"
 								>
-									<XIcon />
+									<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+										<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+									</svg>
 								</a>
 								<a
 									href="#"
-									aria-label="Discord"
+									aria-label="Reddit"
 									className="hover:text-[#f2f2f2] transition-colors"
 								>
-									<DiscordIcon />
+									<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+										<path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z" />
+									</svg>
 								</a>
-							</div>
-						</div>
-						<div className="footer-right flex gap-10 sm:gap-16">
-							<div className="footer-links">
-								<h4 className="text-[#f2f2f2] font-semibold mb-4">Resources</h4>
-								<ul className="space-y-3">
-									<li>
-										<a href="#" className="hover:text-[#f2f2f2] transition-colors">
-											Roadmap
-										</a>
-									</li>
-									<li>
-										<a href="#" className="hover:text-[#f2f2f2] transition-colors">
-											Documentation
-										</a>
-									</li>
-									<li>
-										<a href="#" className="hover:text-[#f2f2f2] transition-colors">
-											Whitepaper
-										</a>
-									</li>
-								</ul>
-							</div>
-							<div className="footer-links">
-								<h4 className="text-[#f2f2f2] font-semibold mb-4">Company</h4>
-								<ul className="space-y-3">
-									<li>
-										<a href="#" className="hover:text-[#f2f2f2] transition-colors">
-											About
-										</a>
-									</li>
-									<li>
-										<a href="#" className="hover:text-[#f2f2f2] transition-colors">
-											Blog
-										</a>
-									</li>
-									<li>
-										<a href="#" className="hover:text-[#f2f2f2] transition-colors">
-											Careers
-										</a>
-									</li>
-								</ul>
 							</div>
 						</div>
 					</div>
 					<div className="footer-bottom pt-8 border-t border-[#2a2a2a] text-center">
-						<p>&copy; 2025 OpenGames, All Rights Reserved</p>
+						<p>&copy; 2025 NoPlace Games, All Rights Reserved</p>
 					</div>
 				</footer>
 			</div>
