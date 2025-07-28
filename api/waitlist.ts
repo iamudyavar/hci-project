@@ -6,6 +6,19 @@ const supabase = createClient(
 );
 
 export default async function handler(req: any, res: any) {
+  if (req.method === 'GET') {
+    // Return the count of emails in the waitlist
+    const { count, error } = await supabase
+      .from('waitlist')
+      .select('*', { count: 'exact', head: true });
+    if (error) {
+      res.status(500).json({ message: error.message });
+      return;
+    }
+    res.status(200).json({ count });
+    return;
+  }
+
   if (req.method !== 'POST') {
     res.status(405).json({ message: 'Method Not Allowed' });
     return;
@@ -22,12 +35,21 @@ export default async function handler(req: any, res: any) {
 
   if (error) {
     if (error.message.includes('duplicate')) {
-      res.status(409).json({ message: 'This email is already on the waitlist.' });
+      // Also return count on duplicate
+      const { count } = await supabase
+        .from('waitlist')
+        .select('*', { count: 'exact', head: true });
+      res.status(409).json({ message: 'This email is already on the waitlist.', count });
       return;
     }
     res.status(500).json({ message: error.message });
     return;
   }
 
-  res.status(200).json({ message: 'Added to waitlist' });
+  // Return updated count after successful insert
+  const { count } = await supabase
+    .from('waitlist')
+    .select('*', { count: 'exact', head: true });
+
+  res.status(200).json({ message: 'Added to waitlist', count });
 }

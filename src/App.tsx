@@ -1,9 +1,24 @@
-import { useState, FormEvent, ChangeEvent } from "react";
+import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 
 function App(): JSX.Element {
 	const [email, setEmail] = useState<string>("");
 	const [message, setMessage] = useState<string>("");
 	const [loading, setLoading] = useState<boolean>(false);
+	const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
+
+	// Fetch waitlist count on mount
+	useEffect(() => {
+		const fetchCount = async () => {
+			try {
+				const res = await fetch("/api/waitlist", { method: "GET" });
+				const data = await res.json();
+				if (typeof data.count === "number") setWaitlistCount(data.count);
+			} catch {
+				setWaitlistCount(null);
+			}
+		};
+		fetchCount();
+	}, []);
 
 	const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -32,6 +47,8 @@ function App(): JSX.Element {
 			} else {
 				setMessage(data.message || "Something went wrong.");
 			}
+			// Update count after submit (success or duplicate)
+			if (typeof data.count === "number") setWaitlistCount(data.count);
 		} catch (err) {
 			setMessage("Network error. Please try again later.");
 		} finally {
@@ -136,6 +153,18 @@ function App(): JSX.Element {
 							{loading ? "Joining..." : "Join the Waitlist →"}
 						</button>
 					</form>
+					{typeof waitlistCount === "number" && (
+						<div className="flex items-center justify-center mt-8 mb-2">
+							<span
+								className="inline-block w-3 h-3 rounded-full mr-2"
+								style={{ backgroundColor: "#ffe082" }}
+								aria-hidden="true"
+							></span>
+							<span className="text-[#ffe082] font-medium text-base">
+								{waitlistCount} people have already joined
+							</span>
+						</div>
+					)}
 					{message && (
 						<p className="form-message mt-6 text-[#ffe082] text-sm mx-2 sm:mx-4 md:mx-auto max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg">
 							{message}
