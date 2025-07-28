@@ -8,7 +8,9 @@ function App(): JSX.Element {
 		e.preventDefault();
 		if (email && email.includes("@")) {
 			console.log(`Email submitted: ${email}`);
-			setMessage(`Thank you! We've added ${email} to our waitlist.`);
+			setMessage(
+				`We've added ${email} to our waitlist. Thank you for your contribution! It helps us build credibility, raise funding, and bring in partners. If you know someone who’d care, please share it with them too.`
+			);
 			setEmail("");
 		} else {
 			setMessage("Please enter a valid email address.");
@@ -88,7 +90,11 @@ function App(): JSX.Element {
 							Join the Waitlist &rarr;
 						</button>
 					</form>
-					{message && <p className="form-message mt-6 text-[#ffe082] text-sm">{message}</p>}
+					{message && (
+						<p className="form-message mt-6 text-[#ffe082] text-sm mx-2 sm:mx-4 md:mx-auto max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg">
+							{message}
+						</p>
+					)}
 				</main>
 
 				<footer className="main-footer pt-12 pb-8 border-t border-[#2a2a2a] text-sm">
