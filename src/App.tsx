@@ -59,18 +59,17 @@ function App(): JSX.Element {
 
 				<main className="hero flex-grow flex flex-col justify-center items-center text-center py-16 md:py-24">
 					<h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-[#f2f2f2] leading-tight mb-6 tracking-tighter">
-						The Ultimate
+						Where Games
 						<br />
-						<span className="highlight inline-block bg-[#ffe082] text-[#1a1a1a] py-1 px-4 rounded-lg transform -rotate-2 mt-2">
-							Games Marketplace
+						<span className="highlight inline-block bg-[#ffe082] text-[#1a1a1a] py-1 px-4 rounded-lg transform -rotate-2 mt-2 mb-4">
+							Find Their Place
 						</span>
 					</h1>
 					<p className="subtitle text-lg md:text-xl max-w-2xl leading-relaxed mb-10">
-						Discover, trade, and play unique games from independent creators worldwide.
+						A digital marketplace where creators sell freely and players own completely.
 						<br />
-						Truly own your assets.
+						No censorship. No takedowns. Just games.
 					</p>
-
 					<form
 						className="waitlist-form flex flex-col sm:flex-row gap-3 w-full max-w-md"
 						onSubmit={handleSubmit}
@@ -127,13 +126,10 @@ function App(): JSX.Element {
 								</svg>
 								<span>NoPlace Games</span>
 							</div>
-							<p className="leading-relaxed mb-4">
-								The games marketplace that gets the job done. Simple, powerful, and works on
-								any platform.
-							</p>
+							<p className="leading-relaxed mb-4">Every game deserves a place.</p>
 							<div className="social-links flex gap-4">
 								<a
-									href="#"
+									href="https://x.com"
 									aria-label="X (formerly Twitter)"
 									className="hover:text-[#f2f2f2] transition-colors"
 								>
@@ -142,7 +138,7 @@ function App(): JSX.Element {
 									</svg>
 								</a>
 								<a
-									href="#"
+									href="https://reddit.com"
 									aria-label="Reddit"
 									className="hover:text-[#f2f2f2] transition-colors"
 								>
@@ -153,9 +149,7 @@ function App(): JSX.Element {
 							</div>
 						</div>
 					</div>
-					<div className="footer-bottom pt-8 border-t border-[#2a2a2a] text-center">
-						<p>&copy; 2025 NoPlace Games, All Rights Reserved</p>
-					</div>
+					<p>&copy; 2025 NoPlace Games, All Rights Reserved</p>
 				</footer>
 			</div>
 		</div>
