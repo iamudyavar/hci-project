@@ -4,16 +4,32 @@ function App(): JSX.Element {
 	const [email, setEmail] = useState<string>("");
 	const [message, setMessage] = useState<string>("");
 
-	const handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
+	const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
-		if (email && email.includes("@")) {
-			console.log(`Email submitted: ${email}`);
-			setMessage(
-				`We've added ${email} to our waitlist. Thank you for your contribution! It helps us build credibility, raise funding, and bring in partners. If you know someone who’d care, please share it with them too.`
-			);
-			setEmail("");
-		} else {
+		if (!email || !email.includes("@")) {
 			setMessage("Please enter a valid email address.");
+			return;
+		}
+
+		try {
+			const res = await fetch("/api/waitlist", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email }),
+			});
+
+			const data = await res.json();
+
+			if (res.ok) {
+				setMessage(
+					`We've added ${email} to our waitlist. Thank you for your contribution! It helps us build credibility, raise funding, and bring in partners. If you know someone who’d care, please share it with them too.`
+				);
+				setEmail("");
+			} else {
+				setMessage(data.message || "Something went wrong.");
+			}
+		} catch (err) {
+			setMessage("Network error. Please try again later.");
 		}
 	};
 
