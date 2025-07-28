@@ -25,6 +25,8 @@ function App(): JSX.Element {
 					`We've added ${email} to our waitlist. Thank you for your contribution! It helps us build credibility, raise funding, and bring in partners. If you know someone who’d care, please share it with them too.`
 				);
 				setEmail("");
+			} else if (res.status === 409) {
+				setMessage("This email is already on the waitlist. Thank you for your interest!");
 			} else {
 				setMessage(data.message || "Something went wrong.");
 			}
@@ -101,7 +103,7 @@ function App(): JSX.Element {
 						/>
 						<button
 							type="submit"
-							className="bg-white text-black py-3 px-6 rounded-lg font-medium text-base hover:bg-[#dcdcdc] focus:outline-none transition-colors whitespace-nowrap"
+							className="bg-white text-black py-3 px-6 rounded-lg font-medium text-base hover:bg-[#dcdcdc] focus:outline-none transition-colors whitespace-nowrap cursor-pointer"
 						>
 							Join the Waitlist &rarr;
 						</button>

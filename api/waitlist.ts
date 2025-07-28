@@ -5,22 +5,36 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY!
 );
 
-export default async function handler(req: any, res: any) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
-  const { email } = req.body;
+export async function POST(request: Request) {
+  const { email } = await request.json();
 
   if (!email || !email.includes('@')) {
-    return res.status(400).json({ message: 'Invalid email' });
+    return new Response(JSON.stringify({ message: 'Invalid email' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const { error } = await supabase.from('waitlist').insert([{ email }]);
 
   if (error) {
-    return res.status(500).json({ message: error.message });
+    // Check for unique constraint violation by code or message
+    if (
+      error.message.includes('duplicate')
+    ) {
+      return new Response(JSON.stringify({ message: 'This email is already on the waitlist.' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ message: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
-  return res.status(200).json({ message: 'Added to waitlist' });
+  return new Response(JSON.stringify({ message: 'Added to waitlist' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
