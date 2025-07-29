@@ -124,84 +124,86 @@ function App(): JSX.Element {
 				</header>
 
 				<main className="hero flex-grow flex flex-col justify-center items-center text-center py-16 md:py-24">
-					<button
-						onClick={navigateToBlog}
-						className="bg-[#1c1c1c] border border-white text-[#c2c2c2] text-base py-2 px-6 rounded-full hover:border-[#f2f2f2] hover:text-white transition-all mb-8 cursor-pointer"
-					>
-						Read how we're building a resilient payment system &rarr;
-					</button>
-
-					<h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-[#f2f2f2] leading-tight mb-8 tracking-tighter mt-0">
-						Where Games
-						<br />
-						<span className="highlight inline-block bg-[#ffe082] text-[#1a1a1a] py-1 px-4 rounded-lg transform -rotate-2 mt-2 mb-0">
-							Find Their Place
-						</span>
-					</h1>
-					<p className="subtitle text-lg md:text-xl max-w-2xl leading-relaxed mb-8 mt-0">
-						A digital marketplace where creators sell freely and players own completely.
-						<br />
-						No censorship. No takedowns. Just games.
-					</p>
-					<form
-						className="waitlist-form flex flex-col sm:flex-row gap-3 w-full max-w-md mb-8 mt-0"
-						onSubmit={handleSubmit}
-					>
-						<input
-							type="email"
-							placeholder="Enter your email"
-							value={email}
-							onChange={handleEmailChange}
-							className="bg-[#1c1c1c] border border-[#2a2a2a] text-[#e2e2e2] py-3 px-4 rounded-lg text-base w-full focus:outline-none focus:border-[#f2f2f2] transition-colors"
-							disabled={loading}
-						/>
+					<div className="flex flex-col items-center w-full gap-8">
 						<button
-							type="submit"
-							className="bg-white text-black py-3 px-6 rounded-lg font-medium text-base hover:bg-[#dcdcdc] focus:outline-none transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center"
-							disabled={loading}
+							onClick={navigateToBlog}
+							className="bg-[#1c1c1c] border border-white text-[#c2c2c2] text-base py-2 px-6 rounded-full hover:border-[#f2f2f2] hover:text-white transition-all cursor-pointer"
 						>
-							{loading ? (
-								<svg
-									className="animate-spin mr-2 h-5 w-5 text-black"
-									xmlns="http://www.w3.org/2000/svg"
-									fill="none"
-									viewBox="0 0 24 24"
-								>
-									<circle
-										className="opacity-25"
-										cx="12"
-										cy="12"
-										r="10"
-										stroke="currentColor"
-										strokeWidth="4"
-									></circle>
-									<path
-										className="opacity-75"
-										fill="currentColor"
-										d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-									></path>
-								</svg>
-							) : null}
-							{loading ? "Joining..." : "Join the Waitlist →"}
+							Read how we're building a resilient payment system &rarr;
 						</button>
-					</form>
-					{typeof waitlistCount === "number" && (
-						<div className="flex items-center justify-center mt-0 mb-8">
-							<span
-								className="inline-block w-3 h-3 rounded-full mr-2"
-								style={{ backgroundColor: "#ffe082" }}
-								aria-hidden="true"
-							></span>
-							<span className="text-[#ffe082] font-medium text-base">
-								{waitlistCount} people have already joined
+
+						<h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-[#f2f2f2] leading-tight tracking-tighter">
+							Where Games
+							<br />
+							<span className="highlight inline-block bg-[#ffe082] text-[#1a1a1a] py-1 px-4 rounded-lg transform -rotate-2 mt-2">
+								Find Their Place
 							</span>
-						</div>
-					)}
-					{message && (
-						<p className="form-message mt-0 text-[#ffe082] text-sm mx-2 sm:mx-4 md:mx-auto max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg">
-							{message}
+						</h1>
+						<p className="subtitle text-lg md:text-xl max-w-2xl leading-relaxed">
+							A digital marketplace where creators sell freely and players own completely.
+							<br />
+							No censorship. No takedowns. Just games.
 						</p>
-					)}
+						<form
+							className="waitlist-form flex flex-col sm:flex-row gap-3 w-full max-w-md"
+							onSubmit={handleSubmit}
+						>
+							<input
+								type="email"
+								placeholder="Enter your email"
+								value={email}
+								onChange={handleEmailChange}
+								className="bg-[#1c1c1c] border border-[#2a2a2a] text-[#e2e2e2] py-3 px-4 rounded-lg text-base w-full focus:outline-none focus:border-[#f2f2f2] transition-colors"
+								disabled={loading}
+							/>
+							<button
+								type="submit"
+								className="bg-white text-black py-3 px-6 rounded-lg font-medium text-base hover:bg-[#dcdcdc] focus:outline-none transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center"
+								disabled={loading}
+							>
+								{loading ? (
+									<svg
+										className="animate-spin mr-2 h-5 w-5 text-black"
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+									>
+										<circle
+											className="opacity-25"
+											cx="12"
+											cy="12"
+											r="10"
+											stroke="currentColor"
+											strokeWidth="4"
+										></circle>
+										<path
+											className="opacity-75"
+											fill="currentColor"
+											d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+										></path>
+									</svg>
+								) : null}
+								{loading ? "Joining..." : "Join the Waitlist →"}
+							</button>
+						</form>
+						{typeof waitlistCount === "number" && (
+							<div className="flex items-center justify-center">
+								<span
+									className="inline-block w-3 h-3 rounded-full mr-2"
+									style={{ backgroundColor: "#ffe082" }}
+									aria-hidden="true"
+								></span>
+								<span className="text-[#ffe082] font-medium text-base">
+									{waitlistCount} people have already joined
+								</span>
+							</div>
+						)}
+						{message && (
+							<p className="form-message text-[#ffe082] text-sm mx-2 sm:mx-4 md:mx-auto max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg">
+								{message}
+							</p>
+						)}
+					</div>
 				</main>
 
 				<footer className="main-footer pt-12 pb-8 border-t border-[#2a2a2a] text-sm">
