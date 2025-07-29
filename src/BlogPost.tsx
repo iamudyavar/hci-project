@@ -164,13 +164,11 @@ function BlogPost({ onNavigateHome }: BlogPostProps): JSX.Element {
 								<li>
 									<span className="font-bold">Diversifying Payment Partners:</span> We are
 									actively building relationships with a variety of payment partners to
-									create a resilient and redundant financial backbone.
-									<br />
-									We've been incredibly grateful for the community's input on this, with
-									many of you highlighting the growing ecosystem of financial services
-									beyond the two most dominant card networks.
-									<br />
-									Our strategy involves creating a mosaic of payment options, including:
+									create a resilient and redundant financial backbone. We've been incredibly
+									grateful for the community's input on this, with many of you highlighting
+									the growing ecosystem of financial services beyond the two most dominant
+									card networks. Our strategy involves creating a mosaic of payment options,
+									including:
 									<ul className="list-disc marker:text-white pl-8 mt-2 space-y-2">
 										<li>
 											Engaging with established networks like{" "}
