@@ -31,7 +31,7 @@ function App(): JSX.Element {
 				<h1 className="text-3xl font-bold mb-4">{message}</h1>
 				{typeof count === "number" ? (
 					<p className="text-lg">
-						Count from API: <span className="font-semibold">{count}</span>
+						COUNT from API: <span className="font-semibold">{count}</span>
 					</p>
 				) : (
 					<p className="text-sm text-gray-400">No count available</p>
