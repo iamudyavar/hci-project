@@ -20,16 +20,16 @@ export default function Navbar(): JSX.Element {
 								Home
 							</NavLink>
 							<NavLink
-								to="/upload"
-								className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
-							>
-								Upload
-							</NavLink>
-							<NavLink
 								to="/quiz"
 								className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
 							>
 								Quiz
+							</NavLink>
+							<NavLink
+								to="/upload"
+								className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+							>
+								Upload photo
 							</NavLink>
 						</div>
 					</div>
