@@ -16,6 +16,25 @@ _Live Example: https://vite-react-example.vercel.app_
 
 You can deploy your new Vite project with a single command from your terminal using [Vercel CLI](https://vercel.com/download):
 
-```shell
+````shell
 $ vercel
+
+## Navigation
+
+This app uses React Router with a simple Navbar to navigate between pages:
+
+- Home: `/`
+- Upload: `/upload`
+- Quiz: `/quiz`
+
+To run locally and try navigation:
+
+```sh
+npm run dev
+````
+
+Then open the Local URL printed in the terminal (usually http://localhost:5173/) and use the top navbar.
+
+```
+
 ```

@@ -1,44 +1,28 @@
-import { useEffect, useState } from "react";
+import { Routes, Route, Outlet } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Home from "./pages/Home";
+import Upload from "./pages/Upload";
+import Quiz from "./pages/Quiz";
 
-function App(): JSX.Element {
-	const [count, setCount] = useState<number | null>(null);
-	const [message, setMessage] = useState<string>("Hello World");
-
-	useEffect(() => {
-		const fetchProject = async () => {
-			try {
-				const res = await fetch("/api/project", { method: "GET" });
-				if (!res.ok) {
-					const err = await res.json().catch(() => ({}));
-					setMessage(err?.message || "Failed to fetch project");
-					setCount(null);
-					return;
-				}
-				const data = await res.json();
-				if (data?.message) setMessage(data.message);
-				if (typeof data?.count === "number") setCount(data.count);
-			} catch (e) {
-				setMessage("Network error");
-				setCount(null);
-			}
-		};
-		fetchProject();
-	}, []);
-
+function Layout(): JSX.Element {
 	return (
-		<div className="min-h-screen bg-gray-900 text-gray-100 flex items-center justify-center">
-			<div className="max-w-lg p-8 bg-gray-800 rounded-xl shadow-lg text-center">
-				<h1 className="text-3xl font-bold mb-4">{message}</h1>
-				{typeof count === "number" ? (
-					<p className="text-lg">
-						COUNT from API: <span className="font-semibold">{count}</span>
-					</p>
-				) : (
-					<p className="text-sm text-gray-400">No count available</p>
-				)}
-			</div>
+		<div className="min-h-screen bg-gray-900 text-gray-100">
+			<Navbar />
+			<main className="mx-auto max-w-6xl p-4">
+				<Outlet />
+			</main>
 		</div>
 	);
 }
 
-export default App;
+export default function App(): JSX.Element {
+	return (
+		<Routes>
+			<Route element={<Layout />}>
+				<Route index element={<Home />} />
+				<Route path="upload" element={<Upload />} />
+				<Route path="quiz" element={<Quiz />} />
+			</Route>
+		</Routes>
+	);
+}
