@@ -3,6 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { NavLink } from "react-router-dom";
 
 export default function Home() {
+  const [user, setUser] = useState<{
+	id: string; 
+	email: string; 
+	username?: string; 
+	quiz3?: string | null;
+  } | null>(null);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [message, setMessage] = useState("");
@@ -15,6 +21,7 @@ export default function Home() {
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
+		setUser(parsedUser);
         setStep("done");
         setMessage(`Welcome back, ${parsedUser.username}!`);
         setUserId(parsedUser.id);
@@ -194,11 +201,35 @@ return (
 						</button>
 					</NavLink>
 
-					<NavLink to="/upload">
-						<button className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-							Upload
-						</button>
-					</NavLink>
+					<div className="relative group">
+						<NavLink
+							to={user?.quiz3 ? "/upload" : "#"}
+							onClick={(e) => {
+								if (!user?.quiz3) e.preventDefault(); // prevent navigation when locked
+							}}
+						>
+							<button
+								disabled={!user?.quiz3}
+								className={`px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 ${
+									user?.quiz3
+										? "bg-gradient-to-r from-green-600 to-blue-400 text-white hover:from-green-500 hover:to-blue-300 shadow-lg hover:shadow-blue-500/30"
+										: "bg-gray-600 text-gray-400 cursor-not-allowed opacity-70"
+								}`}
+							>
+								Upload
+							</button>
+						</NavLink>
+
+						{!user?.quiz3 && (
+							<div
+								className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 
+								group-hover:opacity-100 transition-opacity duration-200 
+								bg-gray-800 text-gray-200 text-sm rounded-lg px-3 py-2 w-max shadow-lg"
+							>
+								Please complete all three quizzes before uploading your pictures.
+							</div>
+						)}
+					</div>
 				</div>
 
 				<button
