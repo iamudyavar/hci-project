@@ -56,6 +56,7 @@ async function handleCreateUser(payload: any, res: any) {
 
   let userId = existingUser?.id;
   let username = existingUser?.username;
+  let quiz3 = existingUser?.quiz3;
   let alreadyExists = !!existingUser;
 
   if (!existingUser) {
@@ -71,7 +72,7 @@ async function handleCreateUser(payload: any, res: any) {
     alreadyExists = false;
   }
 
-  return res.status(200).json({ user: { id: userId, email, username }, alreadyExists });
+  return res.status(200).json({ user: { id: userId, email, username, quiz3 }, alreadyExists });
 }
 
 async function handleUpdateUser(payload: any, res: any) {
