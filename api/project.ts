@@ -1,9 +1,32 @@
 import { createClient } from "@supabase/supabase-js";
+import { GoogleGenAI } from '@google/genai';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_ANON_KEY!
 );
+
+// Initialize Gemini AI
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+
+
+async function listModels() {
+  try {
+
+
+    const modelsPager = await ai.models.list();
+    for await (const model of modelsPager) {
+      console.log(model.name);
+      console.log(`Supported Actions: ${model.supportedActions?.join(', ') || 'N/A'}`);
+    }
+
+  } catch (error) {
+    console.error('Failed to list models:', error);
+  }
+}
+
+// Call this once to see available models
+listModels();
 
 export default async function handler(req: any, res: any) {
   const { action, payload } = req.body || {};
@@ -18,6 +41,8 @@ export default async function handler(req: any, res: any) {
         switch (action) {
           case "createUser":
             return await handleCreateUser(payload, res);
+          case "analyzeFood":
+            return await handleAnalyzeFood(payload, res);
           default:
             return res.status(400).json({ message: "Unknown POST action" });
         }
@@ -39,7 +64,7 @@ export default async function handler(req: any, res: any) {
   }
 }
 
-// Handlers
+
 async function handleCreateUser(payload: any, res: any) {
   const { email } = payload;
   if (!email) return res.status(400).json({ message: "Email is required" });
@@ -67,7 +92,7 @@ async function handleCreateUser(payload: any, res: any) {
       .single();
 
     if (insertError) throw insertError;
-    
+
     userId = data.id;
     alreadyExists = false;
   }
@@ -88,4 +113,133 @@ async function handleUpdateUser(payload: any, res: any) {
   if (error) throw error;
 
   return res.status(200).json({ message: "Username updated", user: data });
+}
+
+// Gemini food analysis handler
+async function handleAnalyzeFood(payload: any, res: any) {
+  const { imageData, mimeType, userId } = payload;
+
+  if (!imageData) {
+    return res.status(400).json({ message: "Image data is required" });
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ message: "Gemini API key not configured" });
+  }
+
+  try {
+    console.log("Starting Gemini food analysis...");
+
+    // Prepare the image part for Gemini
+    const imagePart = {
+      inlineData: {
+        data: imageData, // Base64 image data (without data: prefix)
+        mimeType: mimeType || "image/jpeg",
+      },
+    };
+
+
+    const prompt = `
+      You are an expert nutritionist and food analyst. Analyze this food image and provide a comprehensive nutritional breakdown.
+
+      Please analyze the image and return ONLY a valid JSON object with the following structure (no markdown formatting, no backticks, just pure JSON):
+
+      {
+        "food": "Name of the main dish/food item",
+        "confidence": "High/Medium/Low based on image clarity and recognizability",
+        "calories": 000,
+        "macros": {
+          "protein": 0,
+          "carbs": 0,
+          "fat": 0,
+          "fiber": 0
+        },
+        "details": "Detailed breakdown of ingredients and portion estimation",
+        "healthRating": "Excellent/Good/Fair/Poor with brief explanation",
+        "ingredients": ["ingredient1", "ingredient2", "ingredient3"],
+        "servingSize": "Estimated serving size description",
+        "nutritionalHighlights": "Key nutritional benefits or concerns"
+      }
+
+      Important guidelines:
+      - Estimate calories for the typical serving size shown in the image
+      - Provide macros in grams
+      - Be realistic with portion sizes
+      - If multiple food items are visible, focus on the main/largest item
+      - If no food is detected, return: {"error": "No food items detected in the image"}
+      - Ensure all numbers are realistic and evidence-based
+      - Consider cooking methods that might affect nutritional content
+    `;
+
+
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [prompt, imagePart],
+      config: {
+        responseMimeType: "application/json",
+      }
+    });
+
+
+    const text = result.text;
+    if (!text) {
+      // Return a clear error response if theres no text returned
+      return res.status(500).json({ message: "No AI response text returned." });
+    }
+
+    console.log("Gemini raw response:", text);
+
+    // Parse the JSON response
+    let nutritionalData;
+    try {
+      // Clean the response - remove any markdown formatting if present
+      const cleanedText = text.replace(/```json\n?|```\n?/g, '').trim();
+      nutritionalData = JSON.parse(cleanedText);
+
+      if (nutritionalData.error) {
+        return res.status(400).json({ message: nutritionalData.error });
+      }
+
+    } catch (parseError) {
+      console.error("Failed to parse Gemini response:", parseError);
+      console.log("Raw response that failed to parse:", text);
+      return res.status(500).json({
+        message: "Failed to parse AI response. Please try again.",
+        debug: process.env.NODE_ENV === 'development' ? text : undefined
+      });
+    }
+
+    // store the analysis in database
+    if (userId) {
+      try {
+        await supabase
+          .from("food_analyses")
+          .insert([{
+            user_id: userId,
+            food_name: nutritionalData.food,
+            calories: nutritionalData.calories,
+            analysis_data: nutritionalData,
+            created_at: new Date().toISOString()
+          }]);
+      } catch (dbError) {
+        console.error("Failed to store analysis in database:", dbError);
+        // Don't fail the request if database storage fails
+      }
+    }
+
+    console.log("Analysis completed successfully:", nutritionalData.food);
+
+    return res.status(200).json({
+      success: true,
+      analysis: nutritionalData,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (err: any) {
+    console.error('Gemini analysis failed:', err);
+    return res.status(500).json({
+      message: `Analysis failed: ${err.message || 'Unknown error occurred'}`,
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
+  }
 }
