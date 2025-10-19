@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 type ImageQuestion = {
@@ -9,17 +9,28 @@ type ImageQuestion = {
 	hint?: string;
 };
 
-// Single cheeseburger question (direct URL)
+const initialQuestions: ImageQuestion[] = [
+	{ id: 1, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/cheeseburger.avif', answerCalories: 313 },
+	{ id: 2, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/banana.png', answerCalories: 105 },
+	{ id: 3, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/spaghetti.jpg', answerCalories: 400 },
+	{ id: 4, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/almond.jpg', answerCalories: 165 },
+	{ id: 5, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/bagel.jpg', answerCalories: 350 },
+	{ id: 6, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/papajohns.webp', answerCalories: 320 },
+	{ id: 7, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/twoeggs.jpg', answerCalories: 180 },
+	{ id: 8, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/subway.png', answerCalories: 1000 },
+	{ id: 9, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/orange.jpg', answerCalories: 45 },
+	{ id: 10, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/chicken.jpg', answerCalories: 200 },
+];
+
 
 export default function Quiz(): JSX.Element {
 	const [index, setIndex] = useState<number>(0);
 	const [guess, setGuess] = useState<string>("");
 	const [score, setScore] = useState<number>(0);
 	const [completed, setCompleted] = useState<boolean>(false);
+	const [started, setStarted] = useState<boolean>(false);
 	const [error, setError] = useState<string | null>(null);
-	const [questions, setQuestions] = useState<ImageQuestion[]>([
-		{ id: 1, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/cheeseburger.avif', answerCalories: 313 }
-	]);
+	const [questions, setQuestions] = useState<ImageQuestion[]>(initialQuestions);
 	const navigate = useNavigate();
 
 	// Load progress
@@ -46,6 +57,13 @@ export default function Quiz(): JSX.Element {
 
 	const current = questions[index];
 
+	// Ensure index is always within range if questions change or saved index is invalid
+	useEffect(() => {
+		if (index >= questions.length) {
+			setIndex(Math.max(0, questions.length - 1));
+		}
+	}, [index, questions.length]);
+
 	// No remote loading needed — questions initialized above
 
 	const submitGuess = () => {
@@ -56,13 +74,13 @@ export default function Quiz(): JSX.Element {
 			return;
 		}
 
-		// scoring: within 10% -> full point, within 20% -> 0.5 point
+		// scoring: if within 10% -> full 10 points; otherwise 0 points
 		const diff = Math.abs(numeric - current.answerCalories);
 		const pct = diff / current.answerCalories;
 		if (pct <= 0.1) {
-			setScore((s) => s + 1);
-		} else if (pct <= 0.2) {
-			setScore((s) => s + 0.5);
+			setScore((s) => s + 10);
+		} else {
+			// no points
 		}
 
 		// next
@@ -95,10 +113,11 @@ export default function Quiz(): JSX.Element {
 		setGuess("");
 		setScore(0);
 		setCompleted(false);
+		setStarted(true);
 		setError(null);
 		localStorage.removeItem("calorieQuizProgress");
 		// re-initialize questions to ensure setter is used and quiz restarts
-		setQuestions([{ id: 1, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/cheeseburger.avif', answerCalories: 313 }]);
+		setQuestions(initialQuestions);
 	};
 
 	return (
@@ -106,62 +125,67 @@ export default function Quiz(): JSX.Element {
 			<div className="max-w-5xl mx-auto bg-gray-800 rounded-lg p-6 shadow-lg">
 				<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
 					<h1 className="text-2xl font-bold mb-2">Calorie Guessing Quiz</h1>
-					<p className="text-gray-300 mb-4">Guess the calories for each food image. Score increases for closer estimates.</p>
 				</motion.div>
 
 				<div>
-					<AnimatePresence mode="wait">
-						{!completed ? (
-							<motion.div key={`img-${index}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-								<div className="bg-gray-700 rounded-lg overflow-hidden flex items-center justify-center p-4">
-									{/* Bigger, responsive image: allow larger max-height on bigger screens */}
-									<img
-										src={current.image}
-										alt={`food-${current.id}`}
-										className="w-full h-auto max-h-[360px] sm:max-h-[480px] md:max-h-[640px] lg:max-h-[720px] object-contain"
+					{!started ? (
+						<div className="text-center py-12">
+							<button onClick={() => setStarted(true)} className="bg-blue-600 px-6 py-3 rounded-lg text-white cursor-pointer">Take Quiz</button>
+						</div>
+					) : !completed ? (
+						<div>
+							{/* Fixed-height frame so input below doesn't shift when images differ */}
+							<div className="bg-gray-700 rounded-lg overflow-hidden flex items-center justify-center p-4 h-[360px] sm:h-[480px] md:h-[640px] lg:h-[720px]">
+								<img
+									src={current.image}
+									alt={`food-${current.id}`}
+									className="max-h-full max-w-full object-contain"
+								/>
+							</div>
+
+							<div className="mt-4 grid gap-4">
+								<div className="flex items-center justify-between">
+									<div className="text-lg font-semibold text-gray-200">Question {index + 1} of {questions.length}</div>
+									<div className="text-lg font-semibold text-gray-200">Score: {score}/100</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium mb-2">Your calorie estimate</label>
+									<input
+										type="text"
+										inputMode="numeric"
+										pattern="[0-9]*"
+										value={guess}
+										onChange={(e) => setGuess(e.target.value.replace(/[^0-9]/g, ''))}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter') {
+												e.preventDefault();
+												submitGuess();
+											}
+										}}
+										className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
 									/>
+									{error && <div className="text-red-400 text-sm mt-2">{error}</div>}
 								</div>
 
-								<div className="mt-4 grid gap-4">
-									<div className="flex items-center justify-between">
-										<div className="text-sm text-gray-400">Question {index + 1} of {questions.length}</div>
-										<div className="text-sm text-gray-400">Score: {score}</div>
-									</div>
-
-									<div>
-										<label className="block text-sm font-medium mb-2">Your calorie estimate</label>
-										<input
-											type="text"
-											inputMode="numeric"
-											pattern="[0-9]*"
-											value={guess}
-											onChange={(e) => setGuess(e.target.value.replace(/[^0-9]/g, ''))}
-											placeholder="e.g. 450"
-											className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-										/>
-										{error && <div className="text-red-400 text-sm mt-2">{error}</div>}
-									</div>
-
-									<div className="flex gap-3">
-										<button onClick={submitGuess} className="ml-auto bg-blue-600 text-white px-4 py-2 rounded-lg">Submit</button>
-										<button onClick={() => { setGuess(""); setError(null); }} className="bg-gray-600 text-white px-4 py-2 rounded-lg">Clear</button>
-									</div>
+								<div className="flex gap-3">
+									<button onClick={submitGuess} className="ml-auto bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer">Submit</button>
 								</div>
-							</motion.div>
-						) : (
-							<motion.div key="complete" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-center space-y-4">
-								<div className="bg-gray-700 p-6 rounded-lg">
-									<h2 className="text-2xl font-bold">Quiz Complete</h2>
-										  <p className="text-gray-300 mt-2">Final Score: {score} / {questions.length}</p>
-								</div>
+							</div>
+						</div>
+					) : (
+						<motion.div key="complete" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-center space-y-4">
+							<div className="bg-gray-700 p-6 rounded-lg">
+								<h2 className="text-2xl font-bold">Quiz Complete</h2>
+									<p className="text-gray-300 mt-2">Final Score: {score} / {questions.length * 10}</p>
+							</div>
 
-								<div className="flex justify-center gap-3">
-									<button onClick={() => navigate('/')} className="bg-green-600 px-4 py-2 rounded-lg text-white">Back to Home</button>
-									<button onClick={restart} className="bg-gray-600 px-4 py-2 rounded-lg text-white">Retry Quiz</button>
-								</div>
-							</motion.div>
-						)}
-					</AnimatePresence>
+							<div className="flex justify-center gap-3">
+								<button onClick={() => navigate('/')} className="bg-green-600 px-4 py-2 rounded-lg text-white cursor-pointer">Back to Home</button>
+								<button onClick={restart} className="bg-gray-600 px-4 py-2 rounded-lg text-white cursor-pointer">Retry Quiz</button>
+							</div>
+						</motion.div>
+					)}
 				</div>
 			</div>
 		</div>
