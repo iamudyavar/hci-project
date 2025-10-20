@@ -43,6 +43,8 @@ export default async function handler(req: any, res: any) {
             return await handleCreateUser(payload, res);
           case "analyzeFood":
             return await handleAnalyzeFood(payload, res);
+          case "aiFeedback":
+            return await handleAIFeedback(payload, res);
           default:
             return res.status(400).json({ message: "Unknown POST action" });
         }
@@ -241,5 +243,65 @@ async function handleAnalyzeFood(payload: any, res: any) {
       message: `Analysis failed: ${err.message || 'Unknown error occurred'}`,
       error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
     });
+  }
+}
+
+// AI feedback handler for quiz (estimate calories & give feedback comparing to user's guess)
+async function handleAIFeedback(payload: any, res: any) {
+  const { image, guess } = payload || {};
+
+  if (!image) return res.status(400).json({ message: 'Image URL is required' });
+  if (typeof guess !== 'number' && typeof guess !== 'string') return res.status(400).json({ message: 'Guess is required' });
+
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ message: 'Gemini API key not configured' });
+  }
+
+  try {
+    const prompt = `
+      You are an expert nutritionist and food analyst. Given the image URL and a user's calorie guess, provide a concise JSON response with an estimated calorie value and constructive feedback comparing the user's guess.
+
+      Return ONLY a JSON object (no extra text, no markdown) with the structure:
+      {
+        "estimatedCalories": 000,
+        "confidence": "High|Medium|Low",
+        "feedback": "Short, actionable feedback comparing the user's guess to the estimate and tips to improve future estimates"
+      }
+
+      Image URL: ${image}
+      User guess: ${guess}
+      Important: if the image contains no recognizable food, return { "error": "No food items detected" }.
+    `;
+
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [prompt],
+      config: { responseMimeType: 'application/json' }
+    });
+
+    const text = result.text;
+    if (!text) {
+      return res.status(500).json({ message: 'No AI response text returned.' });
+    }
+
+    // Clean and parse JSON
+    let parsed;
+    try {
+      const cleaned = text.replace(/```json\n?|```\n?/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error('Failed to parse aiFeedback response:', parseErr);
+      return res.status(500).json({ message: 'Failed to parse AI feedback response', debug: process.env.NODE_ENV === 'development' ? text : undefined });
+    }
+
+    if (parsed?.error) {
+      return res.status(400).json({ message: parsed.error });
+    }
+
+    return res.status(200).json({ success: true, feedback: parsed.feedback, estimatedCalories: parsed.estimatedCalories, confidence: parsed.confidence });
+
+  } catch (err: any) {
+    console.error('AI feedback failed:', err);
+    return res.status(500).json({ message: "AI feedback failed", error: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 }
