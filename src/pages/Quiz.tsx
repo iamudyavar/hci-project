@@ -8,6 +8,14 @@ type ImageQuestion = {
 	hint?: string;
 };
 
+type QuizResultItem = {
+	questionId: number;
+	image: string;
+	answerCalories: number;
+	userGuess: number;
+	correct: boolean; // within scoring threshold
+};
+
 const initialQuestions: ImageQuestion[] = [
 	{ id: 1, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/cheeseburger.avif', answerCalories: 313 },
 	{ id: 2, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/banana.png', answerCalories: 105 },
@@ -86,10 +94,93 @@ function getOrCreateQuizSets() {
 }
 
 
+// Derive a human-friendly name from an image URL's filename
+function getFoodNameFromUrl(url: string): string {
+	try {
+		let file = url;
+		try {
+			const u = new URL(url);
+			file = u.pathname.split('/').pop() || url;
+		} catch {
+			file = url.split('/').pop() || url;
+		}
+		file = file.split('?')[0].split('#')[0];
+		const base = file.replace(/\.[a-z0-9]+$/i, '');
+		const cleaned = base.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+		if (!cleaned) return 'Item';
+		// If there are already spaces, just title-case the words
+		if (cleaned.includes(' ')) {
+			return cleaned
+				.split(' ')
+				.map((w) => titleCaseWord(w))
+				.join(' ');
+		}
+		// Otherwise, attempt to segment using known tokens from dataset
+		const segmented = segmentKnownTokens(cleaned.toLowerCase());
+		return segmented.map((t) => titleCaseWord(t)).join(' ');
+	} catch {
+		return 'Item';
+	}
+}
+
+function titleCaseWord(w: string): string {
+	const lower = w.toLowerCase();
+	if (lower === 'of' || lower === 'and' || lower === 'with') return lower;
+	if (lower === 'pb') return 'PB';
+	if (lower === 'j') return 'J';
+	return w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w;
+}
+
+function segmentKnownTokens(text: string): string[] {
+	const tokens = [
+		// keep common single tokens first to avoid over-splitting
+		'cheeseburger', 'banana', 'spaghetti', 'almond', 'bagel', 'subway', 'orange', 'chicken', 'cashews',
+		// handle misspelling in filename
+		'mozzerella', 'mozzarella', 'sticks', 'pint', 'of', 'ice', 'cream', 'cucumber', 'steak', 'pb', 'and', 'j', 'sandwich',
+		'peanut', 'butter', 'ramen', 'fries', 'cup', 'rice', 'taco', 'pancake', 'lays', 'salad', 'nerds', 'curry', 'ribs', 'panda', 'avocado', 'grapes',
+		'papa', 'johns', 'pizza', 'slice', 'two', 'eggs'
+	];
+
+	const byLengthDesc = [...tokens].sort((a, b) => b.length - a.length);
+
+	const result: string[] = [];
+	let i = 0;
+	while (i < text.length) {
+		let matched = '';
+		for (const tok of byLengthDesc) {
+			if (text.startsWith(tok, i)) {
+				matched = tok;
+				break;
+			}
+		}
+		if (matched) {
+			result.push(matched);
+			i += matched.length;
+			continue;
+		}
+		// no token matched, accumulate a character until next match
+		// group consecutive non-matching chars as one token to avoid spaces every char
+		let j = i + 1;
+		while (j < text.length) {
+			if (byLengthDesc.some((t) => text.startsWith(t, j + 1 - t.length))) {
+				break;
+			}
+			j++;
+		}
+		result.push(text.slice(i, j));
+		i = j;
+	}
+
+	// collapse any tiny artifacts like empty strings
+	return result.filter((t) => t.length > 0);
+}
+
+
 export default function Quiz(): JSX.Element {
 	const [index, setIndex] = useState<number>(0);
 	const [guess, setGuess] = useState<string>("");
 	const [score, setScore] = useState<number>(0);
+	const [scoreMax, setScoreMax] = useState<number>(100);
 	const [completed, setCompleted] = useState<boolean>(false);
 	const [started, setStarted] = useState<boolean>(false);
 	const [quizMode, setQuizMode] = useState<1 | 2 | 3 | null>(null);
@@ -99,6 +190,7 @@ export default function Quiz(): JSX.Element {
 	const [nextImageReady, setNextImageReady] = useState<boolean>(true);
 	const [error, setError] = useState<string | null>(null);
 	const [questions, setQuestions] = useState<ImageQuestion[]>(initialQuestions);
+	const [results, setResults] = useState<QuizResultItem[]>([]);
 
 	// Load progress
 	useEffect(() => {
@@ -193,6 +285,18 @@ export default function Quiz(): JSX.Element {
 			// no points
 		}
 
+		// record this question's result
+		setResults((prev) => [
+			...prev,
+			{
+				questionId: current.id,
+				image: current.image,
+				answerCalories: current.answerCalories,
+				userGuess: numeric,
+				correct: pct <= 0.1,
+			},
+		]);
+
 		// For quiz mode 2 (AI feedback) show feedback after submit and require user to press Next.
 		if (quizMode === 2) {
 			setAnswered(true);
@@ -205,7 +309,7 @@ export default function Quiz(): JSX.Element {
 				const res = await fetch("/api/project", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ action: "aiFeedback", payload: { image: current.image, guess: numeric } }),
+					body: JSON.stringify({ action: "aiFeedback", payload: { image: current.image, guess: numeric, answerCalories: current.answerCalories } }),
 				});
 				if (res.ok) {
 					const data = await res.json();
@@ -263,6 +367,17 @@ export default function Quiz(): JSX.Element {
 		setCompleted(true);
 		// mark this quiz as completed so next quiz unlocks
 		if (quizMode) writeQuizFlag(quizMode);
+		// persist the final score for this quiz mode so revisiting shows the score
+		try {
+			if (quizMode) {
+				const max = questions.length * 10;
+				setScoreMax(max);
+				const key = `quizResult_${quizMode}`;
+				localStorage.setItem(key, JSON.stringify({ score, max, results }));
+			}
+		} catch (e) {
+			// ignore persistence errors
+		}
 		// mark quiz3 in userSession
 		try {
 			const storedUser = localStorage.getItem("userSession");
@@ -294,20 +409,45 @@ export default function Quiz(): JSX.Element {
 
 	function startQuiz(mode: 1 | 2 | 3) {
 		setQuizMode(mode);
+		// If the quiz has already been completed before, show stored score instead of restarting
+		try {
+			const key = `quizResult_${mode}`;
+			const raw = localStorage.getItem(key);
+			if (raw) {
+				const parsed = JSON.parse(raw);
+				if (typeof parsed?.score === 'number' && typeof parsed?.max === 'number') {
+					setScore(parsed.score);
+					setScoreMax(parsed.max);
+					if (Array.isArray(parsed.results)) setResults(parsed.results as QuizResultItem[]);
+					setCompleted(true);
+					setStarted(true);
+					setAnswered(false);
+					setAiFeedback(null);
+					setGuess("");
+					return; // do not regenerate questions; show completion view
+				}
+			}
+		} catch (e) {
+			// ignore and proceed to start a fresh quiz
+		}
+
 		// ensure 3 disjoint sets exist and load the set for this mode
 		const sets = getOrCreateQuizSets();
 		const idsForMode = sets[mode - 1] || [];
 		const picked = initialQuestions.filter((q) => idsForMode.includes(q.id));
-		// fallback if sets are incomplete
+		let finalQs: ImageQuestion[];
 		if (picked.length < 10) {
 			const extra = pickRandomQuestions(10 - picked.length);
-			setQuestions([...picked, ...extra]);
+			finalQs = [...picked, ...extra];
 		} else {
-			setQuestions(picked);
+			finalQs = picked;
 		}
+		setQuestions(finalQs);
+		setScoreMax(finalQs.length * 10);
 		setIndex(0);
 		setGuess("");
 		setScore(0);
+		setResults([]);
 		setCompleted(false);
 		setStarted(true);
 		setAnswered(false);
@@ -337,7 +477,6 @@ export default function Quiz(): JSX.Element {
 									);
 								})()}
 							</div>
-							<p className="text-sm text-gray-400">Quiz 1 and 3 collect baseline and improvement scores. Quiz 2 gives AI feedback after each question.</p>
 						</div>
 					) : !completed ? (
 						<div>
@@ -405,11 +544,33 @@ export default function Quiz(): JSX.Element {
 							</div>
 						</div>
 					) : (
-						<motion.div key="complete" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-center space-y-4">
+					<motion.div key="complete" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-center space-y-4">
 							<div className="bg-gray-700 p-6 rounded-lg">
 								<h2 className="text-2xl font-bold">Quiz Complete</h2>
-									<p className="text-gray-300 mt-2">Final Score: {score} / {questions.length * 10}</p>
+								<p className="text-gray-300 mt-2">Final Score: {score} / {scoreMax}</p>
 							</div>
+
+						{/* Per-question results list */}
+						{results.length > 0 && (
+							<div className="bg-gray-800 p-4 rounded-lg text-left">
+								<h3 className="text-lg font-semibold mb-3">Your Answers</h3>
+								<ul className="space-y-3">
+									{results.map((r, i) => (
+										<li key={`${r.questionId}-${i}`} className="flex items-center gap-4 bg-gray-700 rounded-md p-3">
+											<img src={r.image} alt={`q${i + 1}`} className="w-20 h-20 object-cover rounded" />
+											<div className="flex-1">
+												<div className="flex items-center justify-between">
+											<span className="text-gray-200 font-medium">{getFoodNameFromUrl(r.image)}</span>
+													<span className={r.correct ? 'text-green-400' : 'text-red-400'}>{r.correct ? 'Correct' : 'Wrong'}</span>
+												</div>
+											<div className={`text-sm mt-1 ${r.correct ? 'text-green-400' : 'text-red-400'}`}>Your guess: {r.userGuess} cal</div>
+											<div className="text-sm text-gray-400">Answer: {r.answerCalories} cal</div>
+											</div>
+										</li>
+									))}
+								</ul>
+							</div>
+						)}
 
 							<div className="flex justify-center">
 								<button onClick={handleDone} className="bg-blue-600 px-6 py-3 rounded-lg text-white cursor-pointer">Done</button>

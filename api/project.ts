@@ -248,29 +248,30 @@ async function handleAnalyzeFood(payload: any, res: any) {
 
 // AI feedback handler for quiz (estimate calories & give feedback comparing to user's guess)
 async function handleAIFeedback(payload: any, res: any) {
-  const { image, guess } = payload || {};
+  const { image, guess, answerCalories } = payload || {};
 
   if (!image) return res.status(400).json({ message: 'Image URL is required' });
   if (typeof guess !== 'number' && typeof guess !== 'string') return res.status(400).json({ message: 'Guess is required' });
-
+  if (typeof answerCalories !== 'number') return res.status(400).json({ message: 'Answer calories are required' });
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({ message: 'Gemini API key not configured' });
   }
 
   try {
+    // 3. Update the prompt to use answerCalories
     const prompt = `
-      You are an expert nutritionist and food analyst. Given the image URL and a user's calorie guess, provide a concise JSON response with an estimated calorie value and constructive feedback comparing the user's guess.
+      You are an expert nutritionist providing feedback for a calorie-guessing quiz.
+      Given the image URL for context, the user's calorie guess, and the ACTUAL calorie count, provide a concise JSON response with constructive feedback.
 
       Return ONLY a JSON object (no extra text, no markdown) with the structure:
       {
-        "estimatedCalories": 000,
-        "confidence": "High|Medium|Low",
-        "feedback": "Short, actionable feedback comparing the user's guess to the estimate and tips to improve future estimates"
+        "actualCalories": ${answerCalories},
+        "feedback": "Encouraging and actionable feedback. If the user is close, praise them. If they are far off, gently correct them and **explain which specific ingredients (like the sauce, cheese, or cooking oil) are the primary contributors to the calorie count. Provide a brief, memorable tip for future estimations.**"
       }
 
       Image URL: ${image}
       User guess: ${guess}
-      Important: if the image contains no recognizable food, return { "error": "No food items detected" }.
+      Actual Calories: ${answerCalories}
     `;
 
     const result = await ai.models.generateContent({
