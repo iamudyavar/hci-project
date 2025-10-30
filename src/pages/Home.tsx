@@ -140,7 +140,7 @@ return (
 				/>
 				<button
 					type="submit"
-					className="mt-4 p-4 text-lg rounded bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+					className="mt-4 p-4 text-lg rounded bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
 				>
 					Continue
 				</button>
@@ -170,7 +170,7 @@ return (
 				/>
 				<button
 					type="submit"
-					className="mt-4 p-4 text-lg rounded bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+					className="mt-4 p-4 text-lg rounded bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
 				>
 					Save Username
 				</button>
@@ -195,11 +195,11 @@ return (
 				</p>
 
 				<div className="flex gap-4 mt-6">
-					<NavLink to="/quiz">
-						<button className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-							Quiz
-						</button>
-					</NavLink>
+                        <NavLink to="/quiz">
+                        	<button className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                        		Quiz
+                        	</button>
+                    </NavLink>
 
 					<div className="relative group">
 						<NavLink
@@ -210,11 +210,11 @@ return (
 						>
 							<button
 								disabled={!user?.quiz3}
-								className={`px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 ${
+								className={
 									user?.quiz3
-										? "bg-gradient-to-r from-green-600 to-blue-400 text-white hover:from-green-500 hover:to-blue-300 shadow-lg hover:shadow-blue-500/30"
-										: "bg-gray-600 text-gray-400 cursor-not-allowed opacity-70"
-								}`}
+										? "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gradient-to-r from-green-600 to-blue-400 text-white hover:from-green-500 hover:to-blue-300 shadow-lg hover:shadow-blue-500/30 cursor-pointer"
+										: "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gray-600 text-gray-400 cursor-not-allowed opacity-70"
+								}
 							>
 								Upload
 							</button>
@@ -234,7 +234,7 @@ return (
 
 				<button
 					onClick={updateUsername}
-					className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-green-600 to-green-400 hover:from-green-500 hover:to-green-300 text-white shadow-lg hover:shadow-green-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500"
+					className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-green-600 to-green-400 hover:from-green-500 hover:to-green-300 text-white shadow-lg hover:shadow-green-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
 				>
 					Change username
 				</button>

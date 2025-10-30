@@ -43,6 +43,8 @@ export default async function handler(req: any, res: any) {
             return await handleCreateUser(payload, res);
           case "analyzeFood":
             return await handleAnalyzeFood(payload, res);
+          case "aiFeedback":
+            return await handleAIFeedback(payload, res);
           default:
             return res.status(400).json({ message: "Unknown POST action" });
         }
@@ -241,5 +243,66 @@ async function handleAnalyzeFood(payload: any, res: any) {
       message: `Analysis failed: ${err.message || 'Unknown error occurred'}`,
       error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
     });
+  }
+}
+
+// AI feedback handler for quiz (estimate calories & give feedback comparing to user's guess)
+async function handleAIFeedback(payload: any, res: any) {
+  const { image, guess, answerCalories } = payload || {};
+
+  if (!image) return res.status(400).json({ message: 'Image URL is required' });
+  if (typeof guess !== 'number' && typeof guess !== 'string') return res.status(400).json({ message: 'Guess is required' });
+  if (typeof answerCalories !== 'number') return res.status(400).json({ message: 'Answer calories are required' });
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ message: 'Gemini API key not configured' });
+  }
+
+  try {
+    // 3. Update the prompt to use answerCalories
+    const prompt = `
+      You are an expert nutritionist providing feedback for a calorie-guessing quiz.
+      Given the image URL for context, the user's calorie guess, and the ACTUAL calorie count, provide a concise JSON response with constructive feedback.
+
+      Return ONLY a JSON object (no extra text, no markdown) with the structure:
+      {
+        "actualCalories": ${answerCalories},
+        "feedback": "Encouraging and actionable feedback. If the user is close, praise them. If they are far off, gently correct them and **explain which specific ingredients (like the sauce, cheese, or cooking oil) are the primary contributors to the calorie count. Provide a brief, memorable tip for future estimations.**"
+      }
+
+      Image URL: ${image}
+      User guess: ${guess}
+      Actual Calories: ${answerCalories}
+    `;
+
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [prompt],
+      config: { responseMimeType: 'application/json' }
+    });
+
+    const text = result.text;
+    if (!text) {
+      return res.status(500).json({ message: 'No AI response text returned.' });
+    }
+
+    // Clean and parse JSON
+    let parsed;
+    try {
+      const cleaned = text.replace(/```json\n?|```\n?/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error('Failed to parse aiFeedback response:', parseErr);
+      return res.status(500).json({ message: 'Failed to parse AI feedback response', debug: process.env.NODE_ENV === 'development' ? text : undefined });
+    }
+
+    if (parsed?.error) {
+      return res.status(400).json({ message: parsed.error });
+    }
+
+    return res.status(200).json({ success: true, feedback: parsed.feedback, estimatedCalories: parsed.estimatedCalories, confidence: parsed.confidence });
+
+  } catch (err: any) {
+    console.error('AI feedback failed:', err);
+    return res.status(500).json({ message: "AI feedback failed", error: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 }
