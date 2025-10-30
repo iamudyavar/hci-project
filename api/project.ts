@@ -6,20 +6,138 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY!
 );
 
-// Initialize Gemini AI
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+// ===== API KEY AND MODEL ROTATION SETUP =====
 
+// Pool of API keys
+const GEMINI_API_KEYS = [
+  process.env.GEMINI_API_KEY_1!,
+  process.env.GEMINI_API_KEY_2!,
+  process.env.GEMINI_API_KEY_3!,
+  process.env.GEMINI_API_KEY_4!,
+  process.env.GEMINI_API_KEY_5!
+].filter(key => key && key !== 'undefined'); // Filter out undefined keys
+
+// Models that support image input 
+const IMAGE_SUPPORTED_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-2.5-pro",
+  "gemini-2.0-flash-001",
+  "gemini-flash-latest",
+  "gemini-2.5-flash-image",
+];
+
+// Track current indices for rotation
+let currentKeyIndex = 0;
+let currentModelIndex = 0;
+
+/**
+ * Get the next API key in rotation
+ */
+function getNextApiKey(): string {
+  if (GEMINI_API_KEYS.length === 0) {
+    throw new Error("No Gemini API keys configured");
+  }
+  const key = GEMINI_API_KEYS[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % GEMINI_API_KEYS.length;
+  return key;
+}
+
+/**
+ * Get the next model in rotation
+ */
+function getNextModel(): string {
+  const model = IMAGE_SUPPORTED_MODELS[currentModelIndex];
+  currentModelIndex = (currentModelIndex + 1) % IMAGE_SUPPORTED_MODELS.length;
+  return model;
+}
+
+/**
+ * Check if error is a rate limit error
+ */
+function isRateLimitError(error: any): boolean {
+  const errorMessage = error?.message?.toLowerCase() || '';
+  const errorCode = error?.code || error?.status;
+
+  return (
+    errorCode === 429 ||
+    errorCode === 'RESOURCE_EXHAUSTED' ||
+    errorMessage.includes('rate limit') ||
+    errorMessage.includes('quota') ||
+    errorMessage.includes('resource exhausted') ||
+    errorMessage.includes('too many requests')
+  );
+}
+
+/**
+ * Call Gemini API with automatic retry logic for rate limits
+ * Rotates through API keys and models on rate limit errors
+ */
+async function callGeminiWithRetry(
+  prompt: string,
+  imagePart?: any,
+  maxRetries: number = GEMINI_API_KEYS.length * IMAGE_SUPPORTED_MODELS.length
+): Promise<any> {
+  let lastError: any;
+
+  // Try up to maxRetries times (all key/model combinations)
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const apiKey = getNextApiKey();
+    const model = getNextModel();
+
+    try {
+      console.log(`Attempt ${attempt + 1}: Using model ${model} with key ending in ...${apiKey.slice(-4)}`);
+
+      const ai = new GoogleGenAI({ apiKey });
+
+      const contents = imagePart ? [prompt, imagePart] : [prompt];
+
+      const result = await ai.models.generateContent({
+        model,
+        contents,
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      console.log(`Success with model ${model}`);
+      return result;
+
+    } catch (error: any) {
+      console.error(`Attempt ${attempt + 1} failed with model ${model}:`, error.message);
+      lastError = error;
+
+      // If it's a rate limit error, try next key/model combination
+      if (isRateLimitError(error)) {
+        console.log('Rate limit detected, rotating to next API key and model...');
+        continue;
+      }
+
+      // If it's not a rate limit error, throw immediately
+      throw error;
+    }
+  }
+
+  // All retries exhausted
+  throw new Error(`All API keys and models exhausted. Last error: ${lastError?.message || 'Unknown error'}`);
+}
+
+// ===== END ROTATION SETUP =====
 
 async function listModels() {
   try {
-
-
+    // Use first available key to list models
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEYS[0] });
     const modelsPager = await ai.models.list();
+
+    console.log('\n=== Available Gemini Models ===');
     for await (const model of modelsPager) {
       console.log(model.name);
       console.log(`Supported Actions: ${model.supportedActions?.join(', ') || 'N/A'}`);
+      console.log('---');
     }
-
   } catch (error) {
     console.error('Failed to list models:', error);
   }
@@ -117,16 +235,46 @@ async function handleUpdateUser(payload: any, res: any) {
   return res.status(200).json({ message: "Username updated", user: data });
 }
 
-// Gemini food analysis handler
+// helper to test UUID
+function isUuid(value: any) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+// Resolve userId to actual UUID (or null)
+async function resolveUserUuid(rawUserId: any) {
+  if (!rawUserId) return null;
+  if (isUuid(rawUserId)) return rawUserId;
+
+  const { data: found, error: lookupErr } = await supabase
+    .from('users')
+    .select('id, email, username')
+    .or(`email.eq.${rawUserId},username.eq.${rawUserId}`)
+    .limit(1)
+    .single();
+
+  if (lookupErr) {
+    console.warn('User lookup failed when resolving non-UUID id:', lookupErr);
+    return null;
+  }
+
+  if (!found?.id) {
+    console.warn('No user matched the provided non-UUID userId:', rawUserId);
+    return null;
+  }
+
+  return found.id;
+}
+
+// Gemini food analysis handler with rotation
 async function handleAnalyzeFood(payload: any, res: any) {
-  const { imageData, mimeType, userId } = payload;
+  const { imageData, mimeType, userId, userGuess } = payload;
 
   if (!imageData) {
     return res.status(400).json({ message: "Image data is required" });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ message: "Gemini API key not configured" });
+  if (GEMINI_API_KEYS.length === 0) {
+    return res.status(500).json({ message: "Gemini API keys not configured" });
   }
 
   try {
@@ -135,11 +283,10 @@ async function handleAnalyzeFood(payload: any, res: any) {
     // Prepare the image part for Gemini
     const imagePart = {
       inlineData: {
-        data: imageData, // Base64 image data (without data: prefix)
+        data: imageData,
         mimeType: mimeType || "image/jpeg",
       },
     };
-
 
     const prompt = `
       You are an expert nutritionist and food analyst. Analyze this food image and provide a comprehensive nutritional breakdown.
@@ -173,19 +320,11 @@ async function handleAnalyzeFood(payload: any, res: any) {
       - Consider cooking methods that might affect nutritional content
     `;
 
-
-    const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [prompt, imagePart],
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
-
+    // Use retry logic with rotation
+    const result = await callGeminiWithRetry(prompt, imagePart);
 
     const text = result.text;
     if (!text) {
-      // Return a clear error response if theres no text returned
       return res.status(500).json({ message: "No AI response text returned." });
     }
 
@@ -194,8 +333,7 @@ async function handleAnalyzeFood(payload: any, res: any) {
     // Parse the JSON response
     let nutritionalData;
     try {
-      // Clean the response - remove any markdown formatting if present
-      const cleanedText = text.replace(/```json\n?|```\n?/g, '').trim();
+      const cleanedText = text.replace(/``````\n?/g, '').trim();
       nutritionalData = JSON.parse(cleanedText);
 
       if (nutritionalData.error) {
@@ -211,21 +349,56 @@ async function handleAnalyzeFood(payload: any, res: any) {
       });
     }
 
-    // store the analysis in database
+    // Store the analysis in database
     if (userId) {
-      try {
-        await supabase
-          .from("food_analyses")
-          .insert([{
-            user_id: userId,
-            food_name: nutritionalData.food,
-            calories: nutritionalData.calories,
-            analysis_data: nutritionalData,
-            created_at: new Date().toISOString()
-          }]);
-      } catch (dbError) {
-        console.error("Failed to store analysis in database:", dbError);
-        // Don't fail the request if database storage fails
+      const resolvedUserId = await resolveUserUuid(userId);
+
+      console.log('DEBUG: userId input:', userId);
+      console.log('DEBUG: resolvedUserId:', resolvedUserId);
+      console.log('DEBUG: resolvedUserId type:', typeof resolvedUserId);
+      console.log('DEBUG: resolvedUserId null?', resolvedUserId === null);
+
+      // Verify the user actually exists
+      const { data: userCheck, error: checkError } = await supabase
+        .from('users')
+        .select('id, email')
+        .eq('id', resolvedUserId)
+        .single();
+
+      console.log('DEBUG: User check result:', userCheck);
+      console.log('DEBUG: User check error:', checkError);
+
+      if (!resolvedUserId) {
+        return res.status(400).json({
+          message: "User ID could not be resolved",
+          debug: { userId, resolvedUserId }
+        });
+      }
+
+      console.log('Inserting food analysis. original userId:', userId, 'resolvedUserId:', resolvedUserId);
+
+      const rawUserGuess = userGuess;
+
+      const { data: dbData, error: dbError } = await supabase
+        .from('food_analyses')
+        .insert([{
+          user_id: resolvedUserId as unknown as any,
+          user_guess: typeof rawUserGuess === 'number' ? rawUserGuess : null,
+          user_guess_raw: userGuess ?? null,
+          food_name: nutritionalData?.food ?? null,
+          calories: typeof nutritionalData?.calories === 'number' ? nutritionalData.calories : null,
+          analysis_data: nutritionalData,
+          created_at: new Date().toISOString(),
+        }])
+        .select();
+
+      if (dbError) {
+        console.error('Supabase insert error:', dbError);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('AI raw response (for debugging):', text);
+        }
+      } else {
+        console.log('DB insert succeeded:', dbData);
       }
     }
 
@@ -246,19 +419,19 @@ async function handleAnalyzeFood(payload: any, res: any) {
   }
 }
 
-// AI feedback handler for quiz (estimate calories & give feedback comparing to user's guess)
+// AI feedback handler with rotation
 async function handleAIFeedback(payload: any, res: any) {
   const { image, guess, answerCalories } = payload || {};
 
   if (!image) return res.status(400).json({ message: 'Image URL is required' });
   if (typeof guess !== 'number' && typeof guess !== 'string') return res.status(400).json({ message: 'Guess is required' });
   if (typeof answerCalories !== 'number') return res.status(400).json({ message: 'Answer calories are required' });
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ message: 'Gemini API key not configured' });
+
+  if (GEMINI_API_KEYS.length === 0) {
+    return res.status(500).json({ message: 'Gemini API keys not configured' });
   }
 
   try {
-    // 3. Update the prompt to use answerCalories
     const prompt = `
       You are an expert nutritionist providing feedback for a calorie-guessing quiz.
       Given the image URL for context, the user's calorie guess, and the ACTUAL calorie count, provide a concise JSON response with constructive feedback.
@@ -274,11 +447,8 @@ async function handleAIFeedback(payload: any, res: any) {
       Actual Calories: ${answerCalories}
     `;
 
-    const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [prompt],
-      config: { responseMimeType: 'application/json' }
-    });
+    // Use retry logic with rotation (no image part for URL-based feedback)
+    const result = await callGeminiWithRetry(prompt);
 
     const text = result.text;
     if (!text) {
@@ -288,21 +458,32 @@ async function handleAIFeedback(payload: any, res: any) {
     // Clean and parse JSON
     let parsed;
     try {
-      const cleaned = text.replace(/```json\n?|```\n?/g, '').trim();
+      const cleaned = text.replace(/``````\n?/g, '').trim();
       parsed = JSON.parse(cleaned);
     } catch (parseErr) {
       console.error('Failed to parse aiFeedback response:', parseErr);
-      return res.status(500).json({ message: 'Failed to parse AI feedback response', debug: process.env.NODE_ENV === 'development' ? text : undefined });
+      return res.status(500).json({
+        message: 'Failed to parse AI feedback response',
+        debug: process.env.NODE_ENV === 'development' ? text : undefined
+      });
     }
 
     if (parsed?.error) {
       return res.status(400).json({ message: parsed.error });
     }
 
-    return res.status(200).json({ success: true, feedback: parsed.feedback, estimatedCalories: parsed.estimatedCalories, confidence: parsed.confidence });
+    return res.status(200).json({
+      success: true,
+      feedback: parsed.feedback,
+      estimatedCalories: parsed.estimatedCalories,
+      confidence: parsed.confidence
+    });
 
   } catch (err: any) {
     console.error('AI feedback failed:', err);
-    return res.status(500).json({ message: "AI feedback failed", error: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    return res.status(500).json({
+      message: "AI feedback failed",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 }

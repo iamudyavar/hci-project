@@ -63,17 +63,18 @@ export default function Upload() {
 			const base64Data = selectedImage.split(',')[1]; // Remove data:image/jpeg;base64, prefix
 			const mimeType = imageFile.type;
 
+			const numericUserGuess = userGuess !== "" ? Number(userGuess) : null;
+
 			const response = await fetch('/api/project', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					action: 'analyzeFood',
 					payload: {
 						imageData: base64Data,
 						mimeType: mimeType,
-						userId: user?.id || null
+						userId: user?.id || null,
+						userGuess: numericUserGuess
 					}
 				})
 			});
