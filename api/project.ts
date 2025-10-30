@@ -163,6 +163,8 @@ export default async function handler(req: any, res: any) {
             return await handleAnalyzeFood(payload, res);
           case "aiFeedback":
             return await handleAIFeedback(payload, res);
+          case "saveQuizScore":
+            return await handleSaveQuizScore(payload, res);
           default:
             return res.status(400).json({ message: "Unknown POST action" });
         }
@@ -483,6 +485,69 @@ async function handleAIFeedback(payload: any, res: any) {
     console.error('AI feedback failed:', err);
     return res.status(500).json({
       message: "AI feedback failed",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+}
+
+// Save quiz score to scores table
+async function handleSaveQuizScore(payload: any, res: any) {
+  const { userId, quizNumber, score, avgTime } = payload;
+
+  if (!userId) return res.status(400).json({ message: 'User ID is required' });
+  if (typeof quizNumber !== 'number' || ![1, 2, 3].includes(quizNumber)) {
+    return res.status(400).json({ message: 'Quiz number must be 1, 2, or 3' });
+  }
+  if (typeof score !== 'number') return res.status(400).json({ message: 'Score is required' });
+  if (typeof avgTime !== 'number') return res.status(400).json({ message: 'Average time is required' });
+
+  try {
+    // Determine which columns to update based on quiz number
+    const scoreColumn = `score${quizNumber}`;
+    const timeColumn = `time${quizNumber}`;
+
+    // Check if user already has a scores row
+    const { data: existing, error: selectError } = await supabase
+      .from('scores')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      // Error other than "not found"
+      throw selectError;
+    }
+
+    if (existing) {
+      // Update existing row
+      const { error: updateError } = await supabase
+        .from('scores')
+        .update({
+          [scoreColumn]: score,
+          [timeColumn]: avgTime
+        })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+    } else {
+      // Insert new row
+      const { error: insertError } = await supabase
+        .from('scores')
+        .insert([{
+          user_id: userId,
+          [scoreColumn]: score,
+          [timeColumn]: avgTime
+        }]);
+
+      if (insertError) throw insertError;
+    }
+
+    return res.status(200).json({ success: true, message: 'Quiz score saved' });
+
+  } catch (err: any) {
+    console.error('Failed to save quiz score:', err);
+    return res.status(500).json({
+      message: 'Failed to save quiz score',
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
