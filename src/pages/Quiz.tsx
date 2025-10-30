@@ -220,7 +220,7 @@ export default function Quiz(): JSX.Element {
 		);
 	}, [index, score, guess]);
 
-	const current = questions[index];
+	const current = questions[index] || questions[0];
 
 	// Helpers to read/write quiz completion state. Prefer userSession stored object, fallback to individual localStorage keys.
 	function readQuizFlags() {
@@ -458,7 +458,16 @@ export default function Quiz(): JSX.Element {
 					const normalizedScore = parsed.max > 10 ? Math.round(parsed.score / 10) : parsed.score;
 					setScore(normalizedScore);
 					setScoreMax(normalizedMax);
-					if (Array.isArray(parsed.results)) setResults(parsed.results as QuizResultItem[]);
+					if (Array.isArray(parsed.results)) {
+						setResults(parsed.results as QuizResultItem[]);
+						// Reconstruct questions array from results to prevent undefined access
+						const reconstructedQuestions = (parsed.results as QuizResultItem[]).map(r => 
+							initialQuestions.find(q => q.id === r.questionId)
+						).filter(q => q !== undefined) as ImageQuestion[];
+						if (reconstructedQuestions.length > 0) {
+							setQuestions(reconstructedQuestions);
+						}
+					}
 					setCompleted(true);
 					setStarted(true);
 					setAnswered(false);
@@ -506,7 +515,7 @@ export default function Quiz(): JSX.Element {
 					{!started ? (
 						<div className="text-center py-12">
 							<h3 className="text-lg text-gray-200 mb-4">Choose quiz mode</h3>
-							<div className="flex gap-3 justify-center mb-6">
+							<div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
 								{(() => {
 									const flags = readQuizFlags();
 									return (
