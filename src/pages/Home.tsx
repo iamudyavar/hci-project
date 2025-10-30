@@ -190,14 +190,30 @@ return (
 					{message}
 				</h1>
 
-				<p className="text-gray-400 text-lg max-w-md">
-					Take a short quiz or upload a picture of your food and guess how many calories it has!
-				</p>
+				<h2 className="text-xl font-semibold mb-4">
+					Please complete the following steps:
+				</h2>
+
+				<ol className="list-decimal list-inside text-white-400 text-lg max-w-md space-y-2">
+					<li>Take the three quizzes</li>
+					<li>Upload your own photos to learn how many calories you're eating</li>
+					<li>
+						Take the post-study{" "}
+						<a
+						href="https://docs.google.com/forms/d/e/1FAIpQLSc_yVo6b5o6lzTXwDCKgUOPJXQSus7qhdA0a7tr4v8eU__47A/viewform"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-blue-400 underline hover:text-blue-300"
+						>
+						survey
+						</a>
+					</li>
+				</ol>
 
 				<div className="flex gap-4 mt-6">
                         <NavLink to="/quiz">
                         	<button className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                        		Quiz
+                        		Quizzes
                         	</button>
                     </NavLink>
 
@@ -212,7 +228,7 @@ return (
 								disabled={!user?.quiz3}
 								className={
 									user?.quiz3
-										? "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gradient-to-r from-green-600 to-blue-400 text-white hover:from-green-500 hover:to-blue-300 shadow-lg hover:shadow-blue-500/30 cursor-pointer"
+										? "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gradient-to-r from-blue-600 to-blue-400 text-white hover:from-blue-500 hover:to-blue-300 shadow-lg hover:shadow-blue-500/30 cursor-pointer"
 										: "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gray-600 text-gray-400 cursor-not-allowed opacity-70"
 								}
 							>
