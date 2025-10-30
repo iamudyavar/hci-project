@@ -14,6 +14,7 @@ type QuizResultItem = {
 	answerCalories: number;
 	userGuess: number;
 	correct: boolean; // within scoring threshold
+	timeSeconds: number; // time taken to answer this question
 };
 
 const initialQuestions: ImageQuestion[] = [
@@ -44,7 +45,7 @@ const initialQuestions: ImageQuestion[] = [
 	{ id: 25, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/nerds.webp', answerCalories: 200 },
 	{ id: 26, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/curry.jpg', answerCalories: 600 },
 	{ id: 27, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/ribs.jpg', answerCalories: 700 },
-	{ id: 28, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/panda.jpg', answerCalories: 350 },
+	{ id: 28, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/panda.jpg', answerCalories: 910 },
 	{ id: 29, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/avocado.avif', answerCalories: 240 },
 	{ id: 30, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/grapes.png', answerCalories: 62 },
 ];
@@ -180,7 +181,7 @@ export default function Quiz(): JSX.Element {
 	const [index, setIndex] = useState<number>(0);
 	const [guess, setGuess] = useState<string>("");
 	const [score, setScore] = useState<number>(0);
-	const [scoreMax, setScoreMax] = useState<number>(100);
+	const [scoreMax, setScoreMax] = useState<number>(10);
 	const [completed, setCompleted] = useState<boolean>(false);
 	const [started, setStarted] = useState<boolean>(false);
 	const [quizMode, setQuizMode] = useState<1 | 2 | 3 | null>(null);
@@ -191,6 +192,7 @@ export default function Quiz(): JSX.Element {
 	const [error, setError] = useState<string | null>(null);
 	const [questions, setQuestions] = useState<ImageQuestion[]>(initialQuestions);
 	const [results, setResults] = useState<QuizResultItem[]>([]);
+	const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
 
 	// Load progress
 	useEffect(() => {
@@ -276,14 +278,18 @@ export default function Quiz(): JSX.Element {
 			return;
 		}
 
-		// scoring: if within 10% -> full 10 points; otherwise 0 points
+		// scoring: if within 10% -> +1 point; otherwise 0 points
 		const diff = Math.abs(numeric - current.answerCalories);
 		const pct = diff / current.answerCalories;
 		if (pct <= 0.1) {
-			setScore((s) => s + 10);
+			setScore((s) => s + 1);
 		} else {
 			// no points
 		}
+
+		// Calculate time taken for this question
+		const now = Date.now();
+		const timeSeconds = questionStartTime ? (now - questionStartTime) / 1000 : 0;
 
 		// record this question's result
 		setResults((prev) => [
@@ -294,6 +300,7 @@ export default function Quiz(): JSX.Element {
 				answerCalories: current.answerCalories,
 				userGuess: numeric,
 				correct: pct <= 0.1,
+				timeSeconds,
 			},
 		]);
 
@@ -305,7 +312,6 @@ export default function Quiz(): JSX.Element {
 			setNextImageReady(false);
 			setAiFeedback(null);
 			try {
-				// try calling a server endpoint for AI feedback (if implemented). Fallback to simple heuristic message.
 				const res = await fetch("/api/project", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -313,13 +319,17 @@ export default function Quiz(): JSX.Element {
 				});
 				if (res.ok) {
 					const data = await res.json();
-					if (data?.feedback) setAiFeedback(String(data.feedback));
-					else setAiFeedback(getHeuristicFeedback(pct, numeric, current.answerCalories));
+					if (data?.feedback) {
+						setAiFeedback(String(data.feedback));
+					} else {
+						setAiFeedback("AI feedback unavailable.");
+					}
 				} else {
-					setAiFeedback(getHeuristicFeedback(pct, numeric, current.answerCalories));
+					setAiFeedback("AI feedback unavailable.");
 				}
 			} catch (e) {
-				setAiFeedback(getHeuristicFeedback(pct, numeric, current.answerCalories));
+				console.error("AI feedback error:", e);
+				setAiFeedback("AI feedback unavailable.");
 			} finally {
 				setLoadingFeedback(false);
 				// Preload the next image so the Next button only enables when it's ready
@@ -340,6 +350,7 @@ export default function Quiz(): JSX.Element {
 			if (index < questions.length - 1) {
 				setIndex((i) => i + 1);
 				setGuess("");
+				setQuestionStartTime(Date.now()); // reset timer for next question
 			} else {
 				finishQuiz();
 			}
@@ -353,24 +364,21 @@ export default function Quiz(): JSX.Element {
 		setGuess("");
 		if (index < questions.length - 1) {
 			setIndex((i) => i + 1);
+			setQuestionStartTime(Date.now()); // reset timer for next question
 		} else {
 			finishQuiz();
 		}
 	};
 
-	function getHeuristicFeedback(pct: number, guess: number, actual: number) {
-		if (pct <= 0.1) return `Great — your estimate of ${guess} is within 10% of the true value (${actual}).`;
-		return `Your estimate of ${guess} differs from the true value (${actual}) by ${(pct * 100).toFixed(0)}%. Try to look for portion size cues.`;
-	}
-
 	const finishQuiz = () => {
 		setCompleted(true);
 		// mark this quiz as completed so next quiz unlocks
 		if (quizMode) writeQuizFlag(quizMode);
+		
 		// persist the final score for this quiz mode so revisiting shows the score
 		try {
 			if (quizMode) {
-				const max = questions.length * 10;
+				const max = questions.length; // 1 point per correct, out of 10
 				setScoreMax(max);
 				const key = `quizResult_${quizMode}`;
 				localStorage.setItem(key, JSON.stringify({ score, max, results }));
@@ -416,8 +424,11 @@ export default function Quiz(): JSX.Element {
 			if (raw) {
 				const parsed = JSON.parse(raw);
 				if (typeof parsed?.score === 'number' && typeof parsed?.max === 'number') {
-					setScore(parsed.score);
-					setScoreMax(parsed.max);
+					// If stored score was from old scale (out of 100), normalize
+					const normalizedMax = parsed.max > 10 ? parsed.max / 10 : parsed.max;
+					const normalizedScore = parsed.max > 10 ? Math.round(parsed.score / 10) : parsed.score;
+					setScore(normalizedScore);
+					setScoreMax(normalizedMax);
 					if (Array.isArray(parsed.results)) setResults(parsed.results as QuizResultItem[]);
 					setCompleted(true);
 					setStarted(true);
@@ -443,7 +454,7 @@ export default function Quiz(): JSX.Element {
 			finalQs = picked;
 		}
 		setQuestions(finalQs);
-		setScoreMax(finalQs.length * 10);
+		setScoreMax(finalQs.length);
 		setIndex(0);
 		setGuess("");
 		setScore(0);
@@ -452,6 +463,7 @@ export default function Quiz(): JSX.Element {
 		setStarted(true);
 		setAnswered(false);
 		setAiFeedback(null);
+		setQuestionStartTime(Date.now()); // start timer for first question
 	}
 
 	return (
@@ -492,7 +504,7 @@ export default function Quiz(): JSX.Element {
 							<div className="mt-4 grid gap-4">
 								<div className="flex items-center justify-between">
 									<div className="text-lg font-semibold text-gray-200">Question {index + 1} of {questions.length}</div>
-									<div className="text-lg font-semibold text-gray-200">Score: {score}/100</div>
+									<div className="text-lg font-semibold text-gray-200">Score: {score}/{scoreMax}</div>
 								</div>
 
 								<div>
@@ -548,6 +560,11 @@ export default function Quiz(): JSX.Element {
 							<div className="bg-gray-700 p-6 rounded-lg">
 								<h2 className="text-2xl font-bold">Quiz Complete</h2>
 								<p className="text-gray-300 mt-2">Final Score: {score} / {scoreMax}</p>
+								{results.length > 0 && (() => {
+									const totalTime = results.reduce((sum, r) => sum + r.timeSeconds, 0);
+									const avgTime = (totalTime / results.length).toFixed(1);
+									return <p className="text-gray-300 mt-2">Average Time: {avgTime}s</p>;
+								})()}
 							</div>
 
 						{/* Per-question results list */}
@@ -565,6 +582,7 @@ export default function Quiz(): JSX.Element {
 												</div>
 											<div className={`text-sm mt-1 ${r.correct ? 'text-green-400' : 'text-red-400'}`}>Your guess: {r.userGuess} cal</div>
 											<div className="text-sm text-gray-400">Answer: {r.answerCalories} cal</div>
+											<div className="text-sm text-gray-400">Time: {r.timeSeconds.toFixed(1)}s</div>
 											</div>
 										</li>
 									))}
