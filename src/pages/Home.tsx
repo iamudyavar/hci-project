@@ -113,7 +113,7 @@ export default function Home() {
 	};
 
 	return (
-		<div className="flex justify-center items-center h-screen bg-gray-900">
+		<div className="flex justify-center items-center min-h-screen bg-gray-900">
 			<div className="bg-gray-800 p-4 md:p-15 rounded-3xl shadow-xl w-full max-w-xl">
 				<div className="mt-6">
 					<div className="flex flex-col items-center w-full">
