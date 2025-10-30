@@ -178,6 +178,10 @@ function segmentKnownTokens(text: string): string[] {
 
 
 export default function Quiz(): JSX.Element {
+	const [user] = useState(() => {
+		const storedUser = localStorage.getItem("userSession");
+		return storedUser ? JSON.parse(storedUser) : null;
+	});
 	const [index, setIndex] = useState<number>(0);
 	const [guess, setGuess] = useState<string>("");
 	const [score, setScore] = useState<number>(0);
@@ -370,7 +374,7 @@ export default function Quiz(): JSX.Element {
 		}
 	};
 
-	const finishQuiz = () => {
+	const finishQuiz = async () => {
 		setCompleted(true);
 		// mark this quiz as completed so next quiz unlocks
 		if (quizMode) writeQuizFlag(quizMode);
@@ -398,6 +402,31 @@ export default function Quiz(): JSX.Element {
 			// ignore
 		}
 		localStorage.removeItem("calorieQuizProgress");
+
+		// Save score to Supabase
+		if (user?.id && quizMode && results.length > 0) {
+			try {
+				const totalTime = results.reduce((sum, r) => sum + r.timeSeconds, 0);
+				const avgTime = totalTime / results.length;
+
+				await fetch('/api/project', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						action: 'saveQuizScore',
+						payload: {
+							userId: user.id,
+							quizNumber: quizMode,
+							score,
+							avgTime
+						}
+					})
+				});
+			} catch (err) {
+				console.error('Failed to save quiz score to database:', err);
+				// Don't block completion if save fails
+			}
+		}
 	};
 
 
