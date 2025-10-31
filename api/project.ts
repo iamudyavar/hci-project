@@ -564,14 +564,19 @@ async function handleSaveQuizScore(payload: any, res: any) {
 
     // Mark quiz as completed in users table
     const quizColumn = `quiz${quizNumber}`;
-    const { error: userUpdateError } = await supabase
+    console.log(`Updating users table: ${quizColumn} = 1 for user ${userId}`);
+    
+    const { data: updateResult, error: userUpdateError } = await supabase
       .from('users')
       .update({ [quizColumn]: 1 })
-      .eq('id', userId);
+      .eq('id', userId)
+      .select();
 
     if (userUpdateError) {
       console.error('Failed to update users table:', userUpdateError);
       // Don't throw - scores were saved successfully
+    } else {
+      console.log('Successfully updated users table:', updateResult);
     }
 
     return res.status(200).json({ success: true, message: 'Quiz score saved' });

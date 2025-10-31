@@ -50,47 +50,21 @@ const initialQuestions: ImageQuestion[] = [
 	{ id: 30, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/grapes.png', answerCalories: 62 },
 ];
 
-// Utility: shuffle and pick N unique questions
-function shuffleArray<T>(arr: T[]): T[] {
-	const a = arr.slice();
-	for (let i = a.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[a[i], a[j]] = [a[j], a[i]];
-	}
-	return a;
-}
 
-function pickRandomQuestions(count: number): ImageQuestion[] {
-	const shuffled = shuffleArray(initialQuestions);
-	return shuffled.slice(0, Math.min(count, shuffled.length));
-}
-
-// Generate or load 3 disjoint sets of questions (10 each) per user
-function getOrCreateQuizSets(userId: string) {
-	const key = `quizSets_${userId}`;
-	try {
-		const raw = localStorage.getItem(key);
-		if (raw) {
-			const parsed = JSON.parse(raw) as number[][]; // arrays of IDs
-			// validate
-			if (Array.isArray(parsed) && parsed.length === 3) return parsed;
-		}
-	} catch (e) {
-		// ignore and recreate
-	}
-
-	// create 3 disjoint sets
-	const ids = initialQuestions.map((q) => q.id);
-	const shuffled = shuffleArray(ids);
+// Get fixed sets of questions (same for all users) - 3 disjoint sets of 10 questions each
+// Quiz 1: Questions 1-10 (IDs 1-10)
+// Quiz 2: Questions 11-20 (IDs 11-20)
+// Quiz 3: Questions 21-30 (IDs 21-30)
+function getQuizSets() {
+	// Fixed sets - all users get the same questions in the same order
+	const allIds = initialQuestions.map((q) => q.id);
 	const sets: number[][] = [[], [], []];
+	
+	// Divide the 30 questions into 3 sets of 10
 	for (let i = 0; i < 3; i++) {
-		sets[i] = shuffled.slice(i * 10, i * 10 + 10);
+		sets[i] = allIds.slice(i * 10, i * 10 + 10);
 	}
-	try {
-		localStorage.setItem(key, JSON.stringify(sets));
-	} catch (e) {
-		// ignore
-	}
+	
 	return sets;
 }
 
@@ -209,12 +183,11 @@ export default function Quiz(): JSX.Element {
 	// Fetch quiz data on mount and clean up old user data
 	useEffect(() => {
 		if (user?.id) {
-			// Clean up quiz sets from other users
-			const currentQuizSetsKey = `quizSets_${user.id}`;
+			// Clean up all old quiz sets from localStorage (no longer needed with fixed sets)
 			const keysToRemove: string[] = [];
 			for (let i = 0; i < localStorage.length; i++) {
 				const key = localStorage.key(i);
-				if (key && key.startsWith('quizSets_') && key !== currentQuizSetsKey) {
+				if (key && key.startsWith('quizSets_')) {
 					keysToRemove.push(key);
 				}
 			}
@@ -466,22 +439,11 @@ export default function Quiz(): JSX.Element {
 			}
 		}
 
-		// ensure 3 disjoint sets exist and load the set for this mode (per user)
-		if (!user?.id) {
-			console.error('Cannot start quiz without user ID');
-			return;
-		}
-		
-		const sets = getOrCreateQuizSets(user.id);
+		// Get fixed sets of questions (same for all users)
+		const sets = getQuizSets();
 		const idsForMode = sets[mode - 1] || [];
 		const picked = initialQuestions.filter((q) => idsForMode.includes(q.id));
-		let finalQs: ImageQuestion[];
-		if (picked.length < 10) {
-			const extra = pickRandomQuestions(10 - picked.length);
-			finalQs = [...picked, ...extra];
-		} else {
-			finalQs = picked;
-		}
+		const finalQs = picked.length >= 10 ? picked : initialQuestions.slice(0, 10);
 		setQuestions(finalQs);
 		setScoreMax(finalQs.length);
 		setIndex(0);
