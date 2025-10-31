@@ -667,6 +667,9 @@ async function handleGetQuizScores(payload: any, res: any) {
     const quiz1Complete = user?.quiz1 === 1;
     const quiz2Complete = user?.quiz2 === 1;
 
+    console.log('[getQuizScores] User data:', { quiz1: user?.quiz1, quiz2: user?.quiz2, quiz3: user?.quiz3 });
+    console.log('[getQuizScores] Computed flags:', { quiz1Complete, quiz2Complete });
+
     return res.status(200).json({ 
       success: true, 
       scores: scores || null,
