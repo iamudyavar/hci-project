@@ -366,6 +366,19 @@ export default function Quiz(): JSX.Element {
 				});
 				
 				if (response.ok) {
+					// Mark quiz as complete in users table
+					await fetch('/api/project', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							action: 'markQuizComplete',
+							payload: {
+								userId: user.id,
+								quizNumber: quizMode
+							}
+						})
+					});
+
 					// Refresh database scores and flags after saving
 					const scoresResponse = await fetch('/api/project', {
 						method: 'POST',
