@@ -211,7 +211,12 @@ async function handleCreateUser(payload: any, res: any) {
   if (!existingUser) {
     const { data, error: insertError } = await supabase
       .from("users")
-      .insert([{ email }])
+      .insert([{ 
+        email,
+        quiz1: null,
+        quiz2: null,
+        quiz3: null
+      }])
       .select()
       .single();
 
@@ -615,17 +620,22 @@ async function handleGetQuizScores(payload: any, res: any) {
       .eq('id', userId)
       .single();
 
-    if (userError) {
+    if (userError && userError.code !== 'PGRST116') {
+      // Ignore "not found" error, handle others
       throw userError;
     }
+
+    // Default to all locked (except quiz1) if user not found or flags are null
+    const quiz1Complete = user?.quiz1 === 1;
+    const quiz2Complete = user?.quiz2 === 1;
 
     return res.status(200).json({ 
       success: true, 
       scores: scores || null,
       quizFlags: {
-        quiz1: true,                    // Quiz 1 is always unlocked
-        quiz2: user?.quiz1 === 1,       // Quiz 2 unlocks after Quiz 1 is completed
-        quiz3: user?.quiz2 === 1        // Quiz 3 unlocks after Quiz 2 is completed
+        quiz1: true,              // Quiz 1 is always unlocked
+        quiz2: quiz1Complete,     // Quiz 2 unlocks after Quiz 1 is completed
+        quiz3: quiz2Complete      // Quiz 3 unlocks after Quiz 2 is completed
       }
     });
 
