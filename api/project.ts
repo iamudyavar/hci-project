@@ -165,6 +165,8 @@ export default async function handler(req: any, res: any) {
             return await handleAIFeedback(payload, res);
           case "saveQuizScore":
             return await handleSaveQuizScore(payload, res);
+          case "getQuizScores":
+            return await handleGetQuizScores(payload, res);
           default:
             return res.status(400).json({ message: "Unknown POST action" });
         }
@@ -492,7 +494,7 @@ async function handleAIFeedback(payload: any, res: any) {
 
 // Save quiz score to scores table
 async function handleSaveQuizScore(payload: any, res: any) {
-  const { userId, quizNumber, score, avgTime } = payload;
+  const { userId, quizNumber, score, avgTime, results } = payload;
 
   if (!userId) return res.status(400).json({ message: 'User ID is required' });
   if (typeof quizNumber !== 'number' || ![1, 2, 3].includes(quizNumber)) {
@@ -500,11 +502,27 @@ async function handleSaveQuizScore(payload: any, res: any) {
   }
   if (typeof score !== 'number') return res.status(400).json({ message: 'Score is required' });
   if (typeof avgTime !== 'number') return res.status(400).json({ message: 'Average time is required' });
+  if (!Array.isArray(results)) return res.status(400).json({ message: 'Results array is required' });
 
   try {
     // Determine which columns to update based on quiz number
     const scoreColumn = `score${quizNumber}`;
     const timeColumn = `time${quizNumber}`;
+    const detailsColumn = `quiz${quizNumber}_details`;
+
+    // Extract arrays of correct/wrong (1/0) and times from results
+    const correctArray = results.map((r: any) => r.correct ? 1 : 0);
+    const timeArray = results.map((r: any) => r.timeSeconds);
+
+    const detailsData = {
+      correct: correctArray,
+      times: timeArray,
+      questions: results.map((r: any) => ({
+        questionId: r.questionId,
+        userGuess: r.userGuess,
+        answerCalories: r.answerCalories
+      }))
+    };
 
     // Check if user already has a scores row
     const { data: existing, error: selectError } = await supabase
@@ -524,7 +542,8 @@ async function handleSaveQuizScore(payload: any, res: any) {
         .from('scores')
         .update({
           [scoreColumn]: score,
-          [timeColumn]: avgTime
+          [timeColumn]: avgTime,
+          [detailsColumn]: detailsData
         })
         .eq('user_id', userId);
 
@@ -536,10 +555,23 @@ async function handleSaveQuizScore(payload: any, res: any) {
         .insert([{
           user_id: userId,
           [scoreColumn]: score,
-          [timeColumn]: avgTime
+          [timeColumn]: avgTime,
+          [detailsColumn]: detailsData
         }]);
 
       if (insertError) throw insertError;
+    }
+
+    // Mark quiz as completed in users table
+    const quizColumn = `quiz${quizNumber}`;
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update({ [quizColumn]: 1 })
+      .eq('id', userId);
+
+    if (userUpdateError) {
+      console.error('Failed to update users table:', userUpdateError);
+      // Don't throw - scores were saved successfully
     }
 
     return res.status(200).json({ success: true, message: 'Quiz score saved' });
@@ -548,6 +580,54 @@ async function handleSaveQuizScore(payload: any, res: any) {
     console.error('Failed to save quiz score:', err);
     return res.status(500).json({
       message: 'Failed to save quiz score',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+}
+
+// Fetch quiz scores for a user
+async function handleGetQuizScores(payload: any, res: any) {
+  const { userId } = payload;
+
+  if (!userId) return res.status(400).json({ message: 'User ID is required' });
+
+  try {
+    // Fetch scores
+    const { data: scores, error: scoresError } = await supabase
+      .from('scores')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (scoresError && scoresError.code !== 'PGRST116') {
+      throw scoresError;
+    }
+
+    // Fetch user quiz completion flags
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('quiz1, quiz2, quiz3')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      throw userError;
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      scores: scores || null,
+      quizFlags: {
+        quiz1: user?.quiz1 === 1,
+        quiz2: user?.quiz2 === 1,
+        quiz3: user?.quiz3 === 1
+      }
+    });
+
+  } catch (err: any) {
+    console.error('Failed to fetch quiz scores:', err);
+    return res.status(500).json({
+      message: 'Failed to fetch quiz scores',
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }

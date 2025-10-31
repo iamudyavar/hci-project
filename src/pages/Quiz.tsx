@@ -65,9 +65,9 @@ function pickRandomQuestions(count: number): ImageQuestion[] {
 	return shuffled.slice(0, Math.min(count, shuffled.length));
 }
 
-// Generate or load 3 disjoint sets of questions (10 each) and persist in localStorage
-function getOrCreateQuizSets() {
-	const key = 'quizSets';
+// Generate or load 3 disjoint sets of questions (10 each) per user
+function getOrCreateQuizSets(userId: string) {
+	const key = `quizSets_${userId}`;
 	try {
 		const raw = localStorage.getItem(key);
 		if (raw) {
@@ -178,7 +178,7 @@ function segmentKnownTokens(text: string): string[] {
 
 
 export default function Quiz(): JSX.Element {
-	const [user] = useState(() => {
+	const [user] = useState<any>(() => {
 		const storedUser = localStorage.getItem("userSession");
 		return storedUser ? JSON.parse(storedUser) : null;
 	});
@@ -198,72 +198,49 @@ export default function Quiz(): JSX.Element {
 	const [results, setResults] = useState<QuizResultItem[]>([]);
 	const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
 
-	// Load progress
-	useEffect(() => {
-		const saved = localStorage.getItem("calorieQuizProgress");
-		if (saved) {
-			try {
-				const p = JSON.parse(saved);
-				if (typeof p.index === "number") setIndex(p.index);
-				if (typeof p.score === "number") setScore(p.score);
-				if (typeof p.guess === "string") setGuess(p.guess);
-			} catch (e) {
-				// ignore
-			}
-		}
-	}, []);
+	// Fetch quiz scores from Supabase on mount - this is the source of truth
+	const [dbScores, setDbScores] = useState<any>(null);
+	const [quizFlags, setQuizFlags] = useState<{ quiz1: boolean; quiz2: boolean; quiz3: boolean }>({
+		quiz1: false,
+		quiz2: false,
+		quiz3: false
+	});
 
+	// Fetch quiz data on mount and clean up old user data
 	useEffect(() => {
-		localStorage.setItem(
-			"calorieQuizProgress",
-			JSON.stringify({ index, score, guess })
-		);
-	}, [index, score, guess]);
+		if (user?.id) {
+			// Clean up quiz sets from other users
+			const currentQuizSetsKey = `quizSets_${user.id}`;
+			const keysToRemove: string[] = [];
+			for (let i = 0; i < localStorage.length; i++) {
+				const key = localStorage.key(i);
+				if (key && key.startsWith('quizSets_') && key !== currentQuizSetsKey) {
+					keysToRemove.push(key);
+				}
+			}
+			keysToRemove.forEach(key => localStorage.removeItem(key));
+			
+			// Fetch fresh quiz data
+			fetch('/api/project', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'getQuizScores',
+					payload: { userId: user.id }
+				})
+			})
+			.then(res => res.json())
+			.then(data => {
+				if (data.success) {
+					if (data.scores) setDbScores(data.scores);
+					if (data.quizFlags) setQuizFlags(data.quizFlags);
+				}
+			})
+			.catch(err => console.error('Failed to fetch quiz scores:', err));
+		}
+	}, [user?.id]);
 
 	const current = questions[index] || questions[0];
-
-	// Helpers to read/write quiz completion state. Prefer userSession stored object, fallback to individual localStorage keys.
-	function readQuizFlags() {
-		try {
-			const stored = localStorage.getItem('userSession');
-			if (stored) {
-				const u = JSON.parse(stored);
-				return {
-					quiz1: !!u.quiz1,
-					quiz2: !!u.quiz2,
-					quiz3: !!u.quiz3,
-				};
-			}
-		} catch (e) {
-			// ignore
-		}
-		// fallback to explicit keys
-		return {
-			quiz1: localStorage.getItem('quiz1Complete') === 'true',
-			quiz2: localStorage.getItem('quiz2Complete') === 'true',
-			quiz3: localStorage.getItem('quiz3Complete') === 'true',
-		};
-	}
-
-	function writeQuizFlag(mode: 1 | 2 | 3) {
-		// update userSession if exists
-		try {
-			const stored = localStorage.getItem('userSession');
-			if (stored) {
-				const u = JSON.parse(stored);
-				if (mode === 1) u.quiz1 = true;
-				if (mode === 2) u.quiz2 = true;
-				if (mode === 3) u.quiz3 = true;
-				localStorage.setItem('userSession', JSON.stringify(u));
-			}
-		} catch (e) {
-			// ignore
-		}
-		// also set explicit keys
-		if (mode === 1) localStorage.setItem('quiz1Complete', 'true');
-		if (mode === 2) localStorage.setItem('quiz2Complete', 'true');
-		if (mode === 3) localStorage.setItem('quiz3Complete', 'true');
-	}
 
 	// Ensure index is always within range if questions change or saved index is invalid
 	useEffect(() => {
@@ -376,40 +353,31 @@ export default function Quiz(): JSX.Element {
 
 	const finishQuiz = async () => {
 		setCompleted(true);
-		// mark this quiz as completed so next quiz unlocks
-		if (quizMode) writeQuizFlag(quizMode);
 		
-		// persist the final score for this quiz mode so revisiting shows the score
-		try {
-			if (quizMode) {
-				const max = questions.length; // 1 point per correct, out of 10
-				setScoreMax(max);
-				const key = `quizResult_${quizMode}`;
-				localStorage.setItem(key, JSON.stringify({ score, max, results }));
+		const max = questions.length; // 1 point per correct, out of 10
+		setScoreMax(max);
+		
+		// Update quiz3 flag in userSession for Upload page unlock
+		if (quizMode === 3) {
+			try {
+				const storedUser = localStorage.getItem("userSession");
+				if (storedUser) {
+					const parsedUser = JSON.parse(storedUser);
+					parsedUser.quiz3 = true;
+					localStorage.setItem("userSession", JSON.stringify(parsedUser));
+				}
+			} catch (e) {
+				// ignore
 			}
-		} catch (e) {
-			// ignore persistence errors
 		}
-		// mark quiz3 in userSession
-		try {
-			const storedUser = localStorage.getItem("userSession");
-			if (storedUser) {
-				const user = JSON.parse(storedUser);
-				user.quiz3 = true;
-				localStorage.setItem("userSession", JSON.stringify(user));
-			}
-		} catch (e) {
-			// ignore
-		}
-		localStorage.removeItem("calorieQuizProgress");
 
-		// Save score to Supabase
+		// Save score to Supabase - this is the source of truth
 		if (user?.id && quizMode && results.length > 0) {
 			try {
 				const totalTime = results.reduce((sum, r) => sum + r.timeSeconds, 0);
 				const avgTime = totalTime / results.length;
 
-				await fetch('/api/project', {
+				const response = await fetch('/api/project', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -418,10 +386,28 @@ export default function Quiz(): JSX.Element {
 							userId: user.id,
 							quizNumber: quizMode,
 							score,
-							avgTime
+							avgTime,
+							results
 						}
 					})
 				});
+				
+				if (response.ok) {
+					// Refresh database scores and flags after saving
+					const scoresResponse = await fetch('/api/project', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							action: 'getQuizScores',
+							payload: { userId: user.id }
+						})
+					});
+					const scoresData = await scoresResponse.json();
+					if (scoresData.success) {
+						if (scoresData.scores) setDbScores(scoresData.scores);
+						if (scoresData.quizFlags) setQuizFlags(scoresData.quizFlags);
+					}
+				}
 			} catch (err) {
 				console.error('Failed to save quiz score to database:', err);
 				// Don't block completion if save fails
@@ -446,42 +432,47 @@ export default function Quiz(): JSX.Element {
 
 	function startQuiz(mode: 1 | 2 | 3) {
 		setQuizMode(mode);
-		// If the quiz has already been completed before, show stored score instead of restarting
-		try {
-			const key = `quizResult_${mode}`;
-			const raw = localStorage.getItem(key);
-			if (raw) {
-				const parsed = JSON.parse(raw);
-				if (typeof parsed?.score === 'number' && typeof parsed?.max === 'number') {
-					// If stored score was from old scale (out of 100), normalize
-					const normalizedMax = parsed.max > 10 ? parsed.max / 10 : parsed.max;
-					const normalizedScore = parsed.max > 10 ? Math.round(parsed.score / 10) : parsed.score;
-					setScore(normalizedScore);
-					setScoreMax(normalizedMax);
-					if (Array.isArray(parsed.results)) {
-						setResults(parsed.results as QuizResultItem[]);
-						// Reconstruct questions array from results to prevent undefined access
-						const reconstructedQuestions = (parsed.results as QuizResultItem[]).map(r => 
-							initialQuestions.find(q => q.id === r.questionId)
-						).filter(q => q !== undefined) as ImageQuestion[];
-						if (reconstructedQuestions.length > 0) {
-							setQuestions(reconstructedQuestions);
-						}
-					}
-					setCompleted(true);
-					setStarted(true);
-					setAnswered(false);
-					setAiFeedback(null);
-					setGuess("");
-					return; // do not regenerate questions; show completion view
-				}
+		// If the quiz has already been completed (check database), show stored score instead of restarting
+		if (dbScores) {
+			const details = dbScores[`quiz${mode}_details`];
+			const score = dbScores[`score${mode}`];
+			
+			if (details && typeof score === 'number') {
+				// Reconstruct results from database
+				const reconstructedResults = details.questions.map((q: any, idx: number) => ({
+					questionId: q.questionId,
+					image: initialQuestions.find(iq => iq.id === q.questionId)?.image || '',
+					answerCalories: q.answerCalories,
+					userGuess: q.userGuess,
+					correct: details.correct[idx] === 1,
+					timeSeconds: details.times[idx]
+				}));
+				
+				// Reconstruct questions array from results
+				const reconstructedQuestions = reconstructedResults
+					.map((r: QuizResultItem) => initialQuestions.find((q) => q.id === r.questionId))
+					.filter((q: ImageQuestion | undefined): q is ImageQuestion => q !== undefined);
+				
+				setScore(score);
+				setScoreMax(10);
+				setResults(reconstructedResults);
+				setQuestions(reconstructedQuestions.length > 0 ? reconstructedQuestions : initialQuestions);
+				setCompleted(true);
+				setStarted(true);
+				setAnswered(false);
+				setAiFeedback(null);
+				setGuess("");
+				return; // show completion view
 			}
-		} catch (e) {
-			// ignore and proceed to start a fresh quiz
 		}
 
-		// ensure 3 disjoint sets exist and load the set for this mode
-		const sets = getOrCreateQuizSets();
+		// ensure 3 disjoint sets exist and load the set for this mode (per user)
+		if (!user?.id) {
+			console.error('Cannot start quiz without user ID');
+			return;
+		}
+		
+		const sets = getOrCreateQuizSets(user.id);
 		const idsForMode = sets[mode - 1] || [];
 		const picked = initialQuestions.filter((q) => idsForMode.includes(q.id));
 		let finalQs: ImageQuestion[];
@@ -516,16 +507,9 @@ export default function Quiz(): JSX.Element {
 						<div className="text-center py-12">
 							<h3 className="text-lg text-gray-200 mb-4">Choose quiz mode</h3>
 							<div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
-								{(() => {
-									const flags = readQuizFlags();
-									return (
-										<>
-											<button onClick={() => startQuiz(1)} className="px-4 py-2 rounded-lg bg-gray-700 text-white cursor-pointer">Quiz 1 (Baseline)</button>
-											<button onClick={() => startQuiz(2)} disabled={!flags.quiz1} className={`px-4 py-2 rounded-lg ${flags.quiz1 ? 'bg-blue-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 2 (AI feedback)</button>
-											<button onClick={() => startQuiz(3)} disabled={!flags.quiz2} className={`px-4 py-2 rounded-lg ${flags.quiz2 ? 'bg-green-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 3 (Assessment)</button>
-										</>
-									);
-								})()}
+								<button onClick={() => startQuiz(1)} className="px-4 py-2 rounded-lg bg-gray-700 text-white cursor-pointer">Quiz 1 (Baseline)</button>
+								<button onClick={() => startQuiz(2)} disabled={!quizFlags.quiz1} className={`px-4 py-2 rounded-lg ${quizFlags.quiz1 ? 'bg-blue-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 2 (AI feedback)</button>
+								<button onClick={() => startQuiz(3)} disabled={!quizFlags.quiz2} className={`px-4 py-2 rounded-lg ${quizFlags.quiz2 ? 'bg-green-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 3 (Assessment)</button>
 							</div>
 						</div>
 					) : !completed ? (
