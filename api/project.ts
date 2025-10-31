@@ -163,6 +163,12 @@ export default async function handler(req: any, res: any) {
             return await handleAnalyzeFood(payload, res);
           case "aiFeedback":
             return await handleAIFeedback(payload, res);
+          case "saveQuizScore":
+            return await handleSaveQuizScore(payload, res);
+          case "getQuizScores":
+            return await handleGetQuizScores(payload, res);
+          case "markQuizComplete":
+            return await handleMarkQuizComplete(payload, res);
           default:
             return res.status(400).json({ message: "Unknown POST action" });
         }
@@ -207,7 +213,12 @@ async function handleCreateUser(payload: any, res: any) {
   if (!existingUser) {
     const { data, error: insertError } = await supabase
       .from("users")
-      .insert([{ email }])
+      .insert([{ 
+        email,
+        quiz1: null,
+        quiz2: null,
+        quiz3: null
+      }])
       .select()
       .single();
 
@@ -483,6 +494,196 @@ async function handleAIFeedback(payload: any, res: any) {
     console.error('AI feedback failed:', err);
     return res.status(500).json({
       message: "AI feedback failed",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+}
+
+// Save quiz score to scores table
+async function handleSaveQuizScore(payload: any, res: any) {
+  const { userId, quizNumber, score, avgTime, results } = payload;
+
+  if (!userId) return res.status(400).json({ message: 'User ID is required' });
+  if (typeof quizNumber !== 'number' || ![1, 2, 3].includes(quizNumber)) {
+    return res.status(400).json({ message: 'Quiz number must be 1, 2, or 3' });
+  }
+  if (typeof score !== 'number') return res.status(400).json({ message: 'Score is required' });
+  if (typeof avgTime !== 'number') return res.status(400).json({ message: 'Average time is required' });
+  if (!Array.isArray(results)) return res.status(400).json({ message: 'Results array is required' });
+
+  try {
+    // Determine which columns to update based on quiz number
+    const scoreColumn = `score${quizNumber}`;
+    const timeColumn = `time${quizNumber}`;
+    const detailsColumn = `quiz${quizNumber}_details`;
+
+    // Extract arrays of correct/wrong (1/0) and times from results
+    const correctArray = results.map((r: any) => r.correct ? 1 : 0);
+    const timeArray = results.map((r: any) => r.timeSeconds);
+
+    const detailsData = {
+      correct: correctArray,
+      times: timeArray,
+      questions: results.map((r: any) => ({
+        questionId: r.questionId,
+        userGuess: r.userGuess,
+        answerCalories: r.answerCalories
+      }))
+    };
+
+    // Check if user already has a scores row
+    const { data: existing, error: selectError } = await supabase
+      .from('scores')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      // Error other than "not found"
+      throw selectError;
+    }
+
+    if (existing) {
+      // Update existing row
+      const { error: updateError } = await supabase
+        .from('scores')
+        .update({
+          [scoreColumn]: score,
+          [timeColumn]: avgTime,
+          [detailsColumn]: detailsData
+        })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+    } else {
+      // Insert new row
+      const { error: insertError } = await supabase
+        .from('scores')
+        .insert([{
+          user_id: userId,
+          [scoreColumn]: score,
+          [timeColumn]: avgTime,
+          [detailsColumn]: detailsData
+        }]);
+
+      if (insertError) throw insertError;
+    }
+
+    // Mark quiz as completed in users table
+    const quizColumn = `quiz${quizNumber}`;
+    console.log(`Updating users table: ${quizColumn} = 1 for user ${userId}`);
+    
+    const { data: updateResult, error: userUpdateError } = await supabase
+      .from('users')
+      .update({ [quizColumn]: 1 })
+      .eq('id', userId)
+      .select();
+
+    if (userUpdateError) {
+      console.error('Failed to update users table:', userUpdateError);
+      // Don't throw - scores were saved successfully
+    } else {
+      console.log('Successfully updated users table:', updateResult);
+    }
+
+    return res.status(200).json({ success: true, message: 'Quiz score saved' });
+
+  } catch (err: any) {
+    console.error('Failed to save quiz score:', err);
+    return res.status(500).json({
+      message: 'Failed to save quiz score',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+}
+
+// Mark a quiz as complete in the users table
+async function handleMarkQuizComplete(payload: any, res: any) {
+  const { userId, quizNumber } = payload;
+
+  if (!userId) return res.status(400).json({ message: 'User ID is required' });
+  if (typeof quizNumber !== 'number' || ![1, 2, 3].includes(quizNumber)) {
+    return res.status(400).json({ message: 'Quiz number must be 1, 2, or 3' });
+  }
+
+  try {
+    const quizColumn = `quiz${quizNumber}`;
+    console.log(`[markQuizComplete] Marking ${quizColumn} = 1 for user ${userId}`);
+    
+    const { data, error } = await supabase
+      .from('users')
+      .update({ [quizColumn]: 1 })
+      .eq('id', userId)
+      .select();
+
+    if (error) {
+      console.error('[markQuizComplete] Error:', error);
+      throw error;
+    }
+
+    console.log('[markQuizComplete] Success:', data);
+    return res.status(200).json({ success: true, data });
+
+  } catch (err: any) {
+    console.error('[markQuizComplete] Failed:', err);
+    return res.status(500).json({
+      message: 'Failed to mark quiz as complete',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+}
+
+// Fetch quiz scores for a user
+async function handleGetQuizScores(payload: any, res: any) {
+  const { userId } = payload;
+
+  if (!userId) return res.status(400).json({ message: 'User ID is required' });
+
+  try {
+    // Fetch scores
+    const { data: scores, error: scoresError } = await supabase
+      .from('scores')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (scoresError && scoresError.code !== 'PGRST116') {
+      throw scoresError;
+    }
+
+    // Fetch user quiz completion flags
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('quiz1, quiz2, quiz3')
+      .eq('id', userId)
+      .single();
+
+    if (userError && userError.code !== 'PGRST116') {
+      // Ignore "not found" error, handle others
+      throw userError;
+    }
+
+    // Default to all locked (except quiz1) if user not found or flags are null
+    const quiz1Complete = user?.quiz1 === 1;
+    const quiz2Complete = user?.quiz2 === 1;
+
+    console.log('[getQuizScores] User data:', { quiz1: user?.quiz1, quiz2: user?.quiz2, quiz3: user?.quiz3 });
+    console.log('[getQuizScores] Computed flags:', { quiz1Complete, quiz2Complete });
+
+    return res.status(200).json({ 
+      success: true, 
+      scores: scores || null,
+      quizFlags: {
+        quiz1: true,              // Quiz 1 is always unlocked
+        quiz2: quiz1Complete,     // Quiz 2 unlocks after Quiz 1 is completed
+        quiz3: quiz2Complete      // Quiz 3 unlocks after Quiz 2 is completed
+      }
+    });
+
+  } catch (err: any) {
+    console.error('Failed to fetch quiz scores:', err);
+    return res.status(500).json({
+      message: 'Failed to fetch quiz scores',
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }

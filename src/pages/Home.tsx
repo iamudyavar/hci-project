@@ -3,247 +3,267 @@ import { motion, AnimatePresence } from "framer-motion";
 import { NavLink } from "react-router-dom";
 
 export default function Home() {
-  const [user, setUser] = useState<{
-	id: string; 
-	email: string; 
-	username?: string; 
-	quiz3?: string | null;
-  } | null>(null);
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [message, setMessage] = useState("");
-  const [userId, setUserId] = useState<string | null>(null);
-  const [step, setStep] = useState<"email" | "username" | "done">("email");
+	const [user, setUser] = useState<{
+		id: string;
+		email: string;
+		username?: string;
+		quiz3?: string | null;
+	} | null>(null);
+	const [email, setEmail] = useState("");
+	const [username, setUsername] = useState("");
+	const [message, setMessage] = useState("");
+	const [userId, setUserId] = useState<string | null>(null);
+	const [step, setStep] = useState<"email" | "username" | "done">("email");
 
-  // Keep users logged in after refreshes
-  useEffect(() => {
-    const storedUser = localStorage.getItem("userSession");
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-		setUser(parsedUser);
-        setStep("done");
-        setMessage(`Welcome back, ${parsedUser.username}!`);
-        setUserId(parsedUser.id);
-      } catch (err) {
-        console.error("Failed to parse stored user", err);
-      }
-    }
-  }, []);
+	// Keep users logged in after refreshes
+	useEffect(() => {
+		const storedUser = localStorage.getItem("userSession");
+		if (storedUser) {
+			try {
+				const parsedUser = JSON.parse(storedUser);
+				setUser(parsedUser);
+				setStep("done");
+				setMessage(`Welcome back, ${parsedUser.username}!`);
+				setUserId(parsedUser.id);
+			} catch (err) {
+				console.error("Failed to parse stored user", err);
+			}
+		}
+	}, []);
 
-  const isValidEmail = (email: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+	const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+	const handleEmailSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
 
-    if (!isValidEmail(email)) {
-      setMessage("Please enter a valid email address.");
-      return;
-    }
+		if (!isValidEmail(email)) {
+			setMessage("Please enter a valid email address.");
+			return;
+		}
 
-	// create new user with email in database
-    try {
-      const res = await fetch("/api/project", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-			action: "createUser",
-			payload: { email }}),
-      });
+		// create new user with email in database
+		try {
+			const res = await fetch("/api/project", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					action: "createUser",
+					payload: { email },
+				}),
+			});
 
-      const data = await res.json();
+			const data = await res.json();
 
-      if (!res.ok) {
-        setMessage("Error: " + data.message);
-        return;
-      }
+			if (!res.ok) {
+				setMessage("Error: " + data.message);
+				return;
+			}
 
-      localStorage.setItem("userSession", JSON.stringify(data.user));
-      setUserId(data.user.id);
+			localStorage.setItem("userSession", JSON.stringify(data.user));
+			setUserId(data.user.id);
 
-	  // checks if email is already in use, skips username step
-      if (data.alreadyExists && data.user.username) {
-        setMessage(`Welcome back, ${data.user.username}!`);
-        setStep("done");
-      } else {
-        setMessage("Welcome! Please choose a username:");
-        setStep("username");
-      }
-    } catch (err: any) {
-      setMessage("Error: " + err.message);
-    }
-  };
+			// checks if email is already in use, skips username step
+			if (data.alreadyExists && data.user.username) {
+				setMessage(`Welcome back, ${data.user.username}!`);
+				setStep("done");
+			} else {
+				setMessage("Welcome! Please choose a username:");
+				setStep("username");
+			}
+		} catch (err: any) {
+			setMessage("Error: " + err.message);
+		}
+	};
 
-  const handleUsernameSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+	const handleUsernameSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
 
-    if (username.trim().length < 1) {
-      setMessage("Username must be at least 1 character.");
-      return;
-    }
+		if (username.trim().length < 1) {
+			setMessage("Username must be at least 1 character.");
+			return;
+		}
 
-	// populates username column in database
-    try {
-      const res = await fetch("/api/project", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-			action: "updateUsername",
-			payload: { userId, username } }),
-      });
+		// populates username column in database
+		try {
+			const res = await fetch("/api/project", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					action: "updateUsername",
+					payload: { userId, username },
+				}),
+			});
 
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage("Error: " + data.message);
-        return;
-      }
+			const data = await res.json();
+			if (!res.ok) {
+				setMessage("Error: " + data.message);
+				return;
+			}
 
-      localStorage.setItem("userSession", JSON.stringify(data.user));
-      setMessage(`Welcome, ${data.user.username}!`);
-      setStep("done");
-    } catch (err: any) {
-      setMessage("Error: " + err.message);
-    }
-  };
+			localStorage.setItem("userSession", JSON.stringify(data.user));
+			setMessage(`Welcome, ${data.user.username}!`);
+			setStep("done");
+		} catch (err: any) {
+			setMessage("Error: " + err.message);
+		}
+	};
 
-  const updateUsername = () => {
-    setStep("username");
-  };
+	const updateUsername = () => {
+		setStep("username");
+	};
 
-return (
-	<div className="flex justify-center items-center min-h-screen bg-gray-900">
-	<div className="bg-gray-800 p-15 rounded-3xl shadow-xl w-full max-w-xl">
-	<div className="mt-6">
-	<div className="flex flex-col items-center w-full">
-	<AnimatePresence mode="wait">
-		{step === "email" && (
-			<motion.form
-				key="email"
-				onSubmit={handleEmailSubmit}
-				className="flex flex-col w-full"
-				initial={{ opacity: 0, y: 20 }}
-				animate={{ opacity: 1, y: 0 }}
-				exit={{ opacity: 0, y: -20 }}
-				transition={{ duration: 0.4 }}
-			>
-				<label htmlFor="email" className="text-sm font-medium mb-1">
-					Your Email
-				</label>
-				<input
-					type="email"
-					id="email"
-					value={email}
-					onChange={(e) => setEmail(e.target.value)}
-					placeholder="Enter your email"
-					className="p-4 text-lg rounded border border-gray-600 bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-				/>
-				<button
-					type="submit"
-					className="mt-4 p-4 text-lg rounded bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-				>
-					Continue
-				</button>
-			</motion.form>
-		)}
+	return (
+		<div className="flex justify-center items-center min-h-screen bg-gray-900">
+			<div className="bg-gray-800 p-4 md:p-15 rounded-3xl shadow-xl w-full max-w-xl">
+				<div className="mt-6">
+					<div className="flex flex-col items-center w-full">
+						<AnimatePresence mode="wait">
+							{step === "email" && (
+								<motion.form
+									key="email"
+									onSubmit={handleEmailSubmit}
+									className="flex flex-col w-full"
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -20 }}
+									transition={{ duration: 0.4 }}
+								>
+									<label htmlFor="email" className="text-sm font-medium mb-1">
+										Your Email
+									</label>
+									<input
+										type="email"
+										id="email"
+										value={email}
+										onChange={(e) => setEmail(e.target.value)}
+										placeholder="Enter your email"
+										className="p-4 text-lg rounded border border-gray-600 bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+									/>
+									<button
+										type="submit"
+										className="mt-4 p-4 text-lg rounded bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+									>
+										Continue
+									</button>
+								</motion.form>
+							)}
 
-		{step === "username" && (
-			<motion.form
-				key="username"
-				onSubmit={handleUsernameSubmit}
-				className="flex flex-col w-full"
-				initial={{ opacity: 0, y: 20 }}
-				animate={{ opacity: 1, y: 0 }}
-				exit={{ opacity: 0, y: -20 }}
-				transition={{ duration: 0.4 }}
-			>
-				<label htmlFor="username" className="text-sm font-medium mb-1">
-					Choose a Username
-				</label>
-				<input
-					type="text"
-					id="username"
-					value={username}
-					onChange={(e) => setUsername(e.target.value)}
-					placeholder="Enter your username"
-					className="p-4 text-lg rounded border border-gray-600 bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-				/>
-				<button
-					type="submit"
-					className="mt-4 p-4 text-lg rounded bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
-				>
-					Save Username
-				</button>
-			</motion.form>
-			)}
+							{step === "username" && (
+								<motion.form
+									key="username"
+									onSubmit={handleUsernameSubmit}
+									className="flex flex-col w-full"
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -20 }}
+									transition={{ duration: 0.4 }}
+								>
+									<label htmlFor="username" className="text-sm font-medium mb-1">
+										Choose a Username
+									</label>
+									<input
+										type="text"
+										id="username"
+										value={username}
+										onChange={(e) => setUsername(e.target.value)}
+										placeholder="Enter your username"
+										className="p-4 text-lg rounded border border-gray-600 bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+									/>
+									<button
+										type="submit"
+										className="mt-4 p-4 text-lg rounded bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+									>
+										Save Username
+									</button>
+								</motion.form>
+							)}
 
-		{step === "done" && (
-			<motion.div
-				key="done"
-				className="flex flex-col items-center justify-center text-center min-h-[70vh] space-y-6"
-				initial={{ opacity: 0, y: 20 }}
-				animate={{ opacity: 1, y: 0 }}
-				exit={{ opacity: 0, y: -20 }}
-				transition={{ duration: 0.4 }}
-			>
-				<h1 className="text-4xl font-bold text-white drop-shadow-md">
-					{message}
-				</h1>
+							{step === "done" && (
+								<motion.div
+									key="done"
+									className="flex flex-col items-center justify-center text-center min-h-[70vh] space-y-6"
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -20 }}
+									transition={{ duration: 0.4 }}
+								>
+									<h1 className="text-4xl font-bold text-white drop-shadow-md">
+										{message}
+									</h1>
 
-				<p className="text-gray-400 text-lg max-w-md">
-					Take a short quiz or upload a picture of your food and guess how many calories it has!
-				</p>
+									<h2 className="text-xl font-semibold mb-4">
+										Please complete the following steps:
+									</h2>
 
-				<div className="flex gap-4 mt-6">
-                        <NavLink to="/quiz">
-                        	<button className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                        		Quiz
-                        	</button>
-                    </NavLink>
+									<ol className="list-decimal list-inside text-white-400 text-lg max-w-md space-y-2">
+										<li>Take the three quizzes</li>
+										<li>
+											Upload your own photos to learn how many calories you're eating
+										</li>
+										<li>
+											Take the post-study{" "}
+											<a
+												href="https://docs.google.com/forms/d/e/1FAIpQLSc_yVo6b5o6lzTXwDCKgUOPJXQSus7qhdA0a7tr4v8eU__47A/viewform"
+												target="_blank"
+												rel="noopener noreferrer"
+												className="text-blue-400 underline hover:text-blue-300"
+											>
+												survey
+											</a>
+										</li>
+									</ol>
 
-					<div className="relative group">
-						<NavLink
-							to={user?.quiz3 ? "/upload" : "#"}
-							onClick={(e) => {
-								if (!user?.quiz3) e.preventDefault(); // prevent navigation when locked
-							}}
-						>
-							<button
-								disabled={!user?.quiz3}
-								className={
-									user?.quiz3
-										? "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gradient-to-r from-green-600 to-blue-400 text-white hover:from-green-500 hover:to-blue-300 shadow-lg hover:shadow-blue-500/30 cursor-pointer"
-										: "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gray-600 text-gray-400 cursor-not-allowed opacity-70"
-								}
-							>
-								Upload
-							</button>
-						</NavLink>
+									<div className="flex gap-4 mt-6">
+										<NavLink to="/quiz">
+											<button className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+												Quizzes
+											</button>
+										</NavLink>
 
-						{!user?.quiz3 && (
-							<div
-								className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 
+										<div className="relative group">
+											<NavLink
+												to={user?.quiz3 ? "/upload" : "#"}
+												onClick={(e) => {
+													if (!user?.quiz3) e.preventDefault(); // prevent navigation when locked
+												}}
+											>
+												<button
+													disabled={!user?.quiz3}
+													className={
+														user?.quiz3
+															? "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gradient-to-r from-blue-600 to-blue-400 text-white hover:from-blue-500 hover:to-blue-300 shadow-lg hover:shadow-blue-500/30 cursor-pointer"
+															: "px-6 py-3 text-base font-medium rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 bg-gray-600 text-gray-400 cursor-not-allowed opacity-70"
+													}
+												>
+													Upload
+												</button>
+											</NavLink>
+
+											{!user?.quiz3 && (
+												<div
+													className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 
 								group-hover:opacity-100 transition-opacity duration-200 
 								bg-gray-800 text-gray-200 text-sm rounded-lg px-3 py-2 w-max shadow-lg"
-							>
-								Please complete all three quizzes before uploading your pictures.
-							</div>
-						)}
+												>
+													Please complete all three quizzes before uploading your
+													pictures.
+												</div>
+											)}
+										</div>
+									</div>
+
+									<button
+										onClick={updateUsername}
+										className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-green-600 to-green-400 hover:from-green-500 hover:to-green-300 text-white shadow-lg hover:shadow-green-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+									>
+										Change username
+									</button>
+								</motion.div>
+							)}
+						</AnimatePresence>
 					</div>
 				</div>
-
-				<button
-					onClick={updateUsername}
-					className="px-6 py-3 text-base font-medium rounded-2xl bg-gradient-to-r from-green-600 to-green-400 hover:from-green-500 hover:to-green-300 text-white shadow-lg hover:shadow-green-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
-				>
-					Change username
-				</button>
-			</motion.div>
-		)}
-	</AnimatePresence>
-	</div>
-	</div>
-	</div>
-	</div>
-);
+			</div>
+		</div>
+	);
 }

@@ -14,6 +14,7 @@ type QuizResultItem = {
 	answerCalories: number;
 	userGuess: number;
 	correct: boolean; // within scoring threshold
+	timeSeconds: number; // time taken to answer this question
 };
 
 const initialQuestions: ImageQuestion[] = [
@@ -44,52 +45,26 @@ const initialQuestions: ImageQuestion[] = [
 	{ id: 25, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/nerds.webp', answerCalories: 200 },
 	{ id: 26, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/curry.jpg', answerCalories: 600 },
 	{ id: 27, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/ribs.jpg', answerCalories: 700 },
-	{ id: 28, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/panda.jpg', answerCalories: 350 },
+	{ id: 28, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/panda.jpg', answerCalories: 910 },
 	{ id: 29, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/avocado.avif', answerCalories: 240 },
 	{ id: 30, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/grapes.png', answerCalories: 62 },
 ];
 
-// Utility: shuffle and pick N unique questions
-function shuffleArray<T>(arr: T[]): T[] {
-	const a = arr.slice();
-	for (let i = a.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[a[i], a[j]] = [a[j], a[i]];
-	}
-	return a;
-}
 
-function pickRandomQuestions(count: number): ImageQuestion[] {
-	const shuffled = shuffleArray(initialQuestions);
-	return shuffled.slice(0, Math.min(count, shuffled.length));
-}
-
-// Generate or load 3 disjoint sets of questions (10 each) and persist in localStorage
-function getOrCreateQuizSets() {
-	const key = 'quizSets';
-	try {
-		const raw = localStorage.getItem(key);
-		if (raw) {
-			const parsed = JSON.parse(raw) as number[][]; // arrays of IDs
-			// validate
-			if (Array.isArray(parsed) && parsed.length === 3) return parsed;
-		}
-	} catch (e) {
-		// ignore and recreate
-	}
-
-	// create 3 disjoint sets
-	const ids = initialQuestions.map((q) => q.id);
-	const shuffled = shuffleArray(ids);
+// Get fixed sets of questions (same for all users) - 3 disjoint sets of 10 questions each
+// Quiz 1: Questions 1-10 (IDs 1-10)
+// Quiz 2: Questions 11-20 (IDs 11-20)
+// Quiz 3: Questions 21-30 (IDs 21-30)
+function getQuizSets() {
+	// Fixed sets - all users get the same questions in the same order
+	const allIds = initialQuestions.map((q) => q.id);
 	const sets: number[][] = [[], [], []];
+	
+	// Divide the 30 questions into 3 sets of 10
 	for (let i = 0; i < 3; i++) {
-		sets[i] = shuffled.slice(i * 10, i * 10 + 10);
+		sets[i] = allIds.slice(i * 10, i * 10 + 10);
 	}
-	try {
-		localStorage.setItem(key, JSON.stringify(sets));
-	} catch (e) {
-		// ignore
-	}
+	
 	return sets;
 }
 
@@ -177,10 +152,14 @@ function segmentKnownTokens(text: string): string[] {
 
 
 export default function Quiz(): JSX.Element {
+	const [user] = useState<any>(() => {
+		const storedUser = localStorage.getItem("userSession");
+		return storedUser ? JSON.parse(storedUser) : null;
+	});
 	const [index, setIndex] = useState<number>(0);
 	const [guess, setGuess] = useState<string>("");
 	const [score, setScore] = useState<number>(0);
-	const [scoreMax, setScoreMax] = useState<number>(100);
+	const [scoreMax, setScoreMax] = useState<number>(10);
 	const [completed, setCompleted] = useState<boolean>(false);
 	const [started, setStarted] = useState<boolean>(false);
 	const [quizMode, setQuizMode] = useState<1 | 2 | 3 | null>(null);
@@ -191,73 +170,54 @@ export default function Quiz(): JSX.Element {
 	const [error, setError] = useState<string | null>(null);
 	const [questions, setQuestions] = useState<ImageQuestion[]>(initialQuestions);
 	const [results, setResults] = useState<QuizResultItem[]>([]);
+	const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
 
-	// Load progress
+	// Fetch quiz scores from Supabase on mount - this is the source of truth
+	const [dbScores, setDbScores] = useState<any>(null);
+	const [quizFlags, setQuizFlags] = useState<{ quiz1: boolean; quiz2: boolean; quiz3: boolean }>({
+		quiz1: true,   // Quiz 1 is always unlocked
+		quiz2: false,  // Quiz 2 locked until Quiz 1 is completed
+		quiz3: false   // Quiz 3 locked until Quiz 2 is completed
+	});
+
+	// Fetch quiz data on mount and clean up old user data
 	useEffect(() => {
-		const saved = localStorage.getItem("calorieQuizProgress");
-		if (saved) {
-			try {
-				const p = JSON.parse(saved);
-				if (typeof p.index === "number") setIndex(p.index);
-				if (typeof p.score === "number") setScore(p.score);
-				if (typeof p.guess === "string") setGuess(p.guess);
-			} catch (e) {
-				// ignore
+		if (user?.id) {
+			// Clean up all old quiz sets from localStorage (no longer needed with fixed sets)
+			const keysToRemove: string[] = [];
+			for (let i = 0; i < localStorage.length; i++) {
+				const key = localStorage.key(i);
+				if (key && key.startsWith('quizSets_')) {
+					keysToRemove.push(key);
+				}
 			}
+			keysToRemove.forEach(key => localStorage.removeItem(key));
+			
+			// Fetch fresh quiz data
+			fetch('/api/project', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'getQuizScores',
+					payload: { userId: user.id }
+				})
+			})
+			.then(res => res.json())
+			.then(data => {
+				if (data.success) {
+					console.log('[Quiz] Received quiz data:', data);
+					if (data.scores) setDbScores(data.scores);
+					if (data.quizFlags) {
+						console.log('[Quiz] Setting quizFlags:', data.quizFlags);
+						setQuizFlags(data.quizFlags);
+					}
+				}
+			})
+			.catch(err => console.error('Failed to fetch quiz scores:', err));
 		}
-	}, []);
+	}, [user?.id]);
 
-	useEffect(() => {
-		localStorage.setItem(
-			"calorieQuizProgress",
-			JSON.stringify({ index, score, guess })
-		);
-	}, [index, score, guess]);
-
-	const current = questions[index];
-
-	// Helpers to read/write quiz completion state. Prefer userSession stored object, fallback to individual localStorage keys.
-	function readQuizFlags() {
-		try {
-			const stored = localStorage.getItem('userSession');
-			if (stored) {
-				const u = JSON.parse(stored);
-				return {
-					quiz1: !!u.quiz1,
-					quiz2: !!u.quiz2,
-					quiz3: !!u.quiz3,
-				};
-			}
-		} catch (e) {
-			// ignore
-		}
-		// fallback to explicit keys
-		return {
-			quiz1: localStorage.getItem('quiz1Complete') === 'true',
-			quiz2: localStorage.getItem('quiz2Complete') === 'true',
-			quiz3: localStorage.getItem('quiz3Complete') === 'true',
-		};
-	}
-
-	function writeQuizFlag(mode: 1 | 2 | 3) {
-		// update userSession if exists
-		try {
-			const stored = localStorage.getItem('userSession');
-			if (stored) {
-				const u = JSON.parse(stored);
-				if (mode === 1) u.quiz1 = true;
-				if (mode === 2) u.quiz2 = true;
-				if (mode === 3) u.quiz3 = true;
-				localStorage.setItem('userSession', JSON.stringify(u));
-			}
-		} catch (e) {
-			// ignore
-		}
-		// also set explicit keys
-		if (mode === 1) localStorage.setItem('quiz1Complete', 'true');
-		if (mode === 2) localStorage.setItem('quiz2Complete', 'true');
-		if (mode === 3) localStorage.setItem('quiz3Complete', 'true');
-	}
+	const current = questions[index] || questions[0];
 
 	// Ensure index is always within range if questions change or saved index is invalid
 	useEffect(() => {
@@ -276,14 +236,18 @@ export default function Quiz(): JSX.Element {
 			return;
 		}
 
-		// scoring: if within 10% -> full 10 points; otherwise 0 points
+		// scoring: if within 10% -> +1 point; otherwise 0 points
 		const diff = Math.abs(numeric - current.answerCalories);
 		const pct = diff / current.answerCalories;
 		if (pct <= 0.1) {
-			setScore((s) => s + 10);
+			setScore((s) => s + 1);
 		} else {
 			// no points
 		}
+
+		// Calculate time taken for this question
+		const now = Date.now();
+		const timeSeconds = questionStartTime ? (now - questionStartTime) / 1000 : 0;
 
 		// record this question's result
 		setResults((prev) => [
@@ -294,6 +258,7 @@ export default function Quiz(): JSX.Element {
 				answerCalories: current.answerCalories,
 				userGuess: numeric,
 				correct: pct <= 0.1,
+				timeSeconds,
 			},
 		]);
 
@@ -305,7 +270,6 @@ export default function Quiz(): JSX.Element {
 			setNextImageReady(false);
 			setAiFeedback(null);
 			try {
-				// try calling a server endpoint for AI feedback (if implemented). Fallback to simple heuristic message.
 				const res = await fetch("/api/project", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -313,13 +277,17 @@ export default function Quiz(): JSX.Element {
 				});
 				if (res.ok) {
 					const data = await res.json();
-					if (data?.feedback) setAiFeedback(String(data.feedback));
-					else setAiFeedback(getHeuristicFeedback(pct, numeric, current.answerCalories));
+					if (data?.feedback) {
+						setAiFeedback(String(data.feedback));
+					} else {
+						setAiFeedback("AI feedback unavailable.");
+					}
 				} else {
-					setAiFeedback(getHeuristicFeedback(pct, numeric, current.answerCalories));
+					setAiFeedback("AI feedback unavailable.");
 				}
 			} catch (e) {
-				setAiFeedback(getHeuristicFeedback(pct, numeric, current.answerCalories));
+				console.error("AI feedback error:", e);
+				setAiFeedback("AI feedback unavailable.");
 			} finally {
 				setLoadingFeedback(false);
 				// Preload the next image so the Next button only enables when it's ready
@@ -340,6 +308,7 @@ export default function Quiz(): JSX.Element {
 			if (index < questions.length - 1) {
 				setIndex((i) => i + 1);
 				setGuess("");
+				setQuestionStartTime(Date.now()); // reset timer for next question
 			} else {
 				finishQuiz();
 			}
@@ -353,43 +322,87 @@ export default function Quiz(): JSX.Element {
 		setGuess("");
 		if (index < questions.length - 1) {
 			setIndex((i) => i + 1);
+			setQuestionStartTime(Date.now()); // reset timer for next question
 		} else {
 			finishQuiz();
 		}
 	};
 
-	function getHeuristicFeedback(pct: number, guess: number, actual: number) {
-		if (pct <= 0.1) return `Great — your estimate of ${guess} is within 10% of the true value (${actual}).`;
-		return `Your estimate of ${guess} differs from the true value (${actual}) by ${(pct * 100).toFixed(0)}%. Try to look for portion size cues.`;
-	}
-
-	const finishQuiz = () => {
+	const finishQuiz = async () => {
 		setCompleted(true);
-		// mark this quiz as completed so next quiz unlocks
-		if (quizMode) writeQuizFlag(quizMode);
-		// persist the final score for this quiz mode so revisiting shows the score
-		try {
-			if (quizMode) {
-				const max = questions.length * 10;
-				setScoreMax(max);
-				const key = `quizResult_${quizMode}`;
-				localStorage.setItem(key, JSON.stringify({ score, max, results }));
+		
+		const max = questions.length; // 1 point per correct, out of 10
+		setScoreMax(max);
+		
+		// Update quiz3 flag in userSession for Upload page unlock
+		if (quizMode === 3) {
+			try {
+				const storedUser = localStorage.getItem("userSession");
+				if (storedUser) {
+					const parsedUser = JSON.parse(storedUser);
+					parsedUser.quiz3 = true;
+					localStorage.setItem("userSession", JSON.stringify(parsedUser));
+				}
+			} catch (e) {
+				// ignore
 			}
-		} catch (e) {
-			// ignore persistence errors
 		}
-		// mark quiz3 in userSession
-		try {
-			const storedUser = localStorage.getItem("userSession");
-			if (storedUser) {
-				const user = JSON.parse(storedUser);
-				user.quiz3 = true;
-				localStorage.setItem("userSession", JSON.stringify(user));
+
+		// Save score to Supabase - this is the source of truth
+		if (user?.id && quizMode && results.length > 0) {
+			try {
+				const totalTime = results.reduce((sum, r) => sum + r.timeSeconds, 0);
+				const avgTime = totalTime / results.length;
+
+				const response = await fetch('/api/project', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						action: 'saveQuizScore',
+						payload: {
+							userId: user.id,
+							quizNumber: quizMode,
+							score,
+							avgTime,
+							results
+						}
+					})
+				});
+				
+				if (response.ok) {
+					// Mark quiz as complete in users table
+					await fetch('/api/project', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							action: 'markQuizComplete',
+							payload: {
+								userId: user.id,
+								quizNumber: quizMode
+							}
+						})
+					});
+
+					// Refresh database scores and flags after saving
+					const scoresResponse = await fetch('/api/project', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							action: 'getQuizScores',
+							payload: { userId: user.id }
+						})
+					});
+					const scoresData = await scoresResponse.json();
+					if (scoresData.success) {
+						if (scoresData.scores) setDbScores(scoresData.scores);
+						if (scoresData.quizFlags) setQuizFlags(scoresData.quizFlags);
+					}
+				}
+			} catch (err) {
+				console.error('Failed to save quiz score to database:', err);
+				// Don't block completion if save fails
 			}
-		} catch (e) {
-			// ignore
 		}
-		localStorage.removeItem("calorieQuizProgress");
 	};
 
 
@@ -409,41 +422,47 @@ export default function Quiz(): JSX.Element {
 
 	function startQuiz(mode: 1 | 2 | 3) {
 		setQuizMode(mode);
-		// If the quiz has already been completed before, show stored score instead of restarting
-		try {
-			const key = `quizResult_${mode}`;
-			const raw = localStorage.getItem(key);
-			if (raw) {
-				const parsed = JSON.parse(raw);
-				if (typeof parsed?.score === 'number' && typeof parsed?.max === 'number') {
-					setScore(parsed.score);
-					setScoreMax(parsed.max);
-					if (Array.isArray(parsed.results)) setResults(parsed.results as QuizResultItem[]);
-					setCompleted(true);
-					setStarted(true);
-					setAnswered(false);
-					setAiFeedback(null);
-					setGuess("");
-					return; // do not regenerate questions; show completion view
-				}
+		// If the quiz has already been completed (check database), show stored score instead of restarting
+		if (dbScores) {
+			const details = dbScores[`quiz${mode}_details`];
+			const score = dbScores[`score${mode}`];
+			
+			if (details && typeof score === 'number') {
+				// Reconstruct results from database
+				const reconstructedResults = details.questions.map((q: any, idx: number) => ({
+					questionId: q.questionId,
+					image: initialQuestions.find(iq => iq.id === q.questionId)?.image || '',
+					answerCalories: q.answerCalories,
+					userGuess: q.userGuess,
+					correct: details.correct[idx] === 1,
+					timeSeconds: details.times[idx]
+				}));
+				
+				// Reconstruct questions array from results
+				const reconstructedQuestions = reconstructedResults
+					.map((r: QuizResultItem) => initialQuestions.find((q) => q.id === r.questionId))
+					.filter((q: ImageQuestion | undefined): q is ImageQuestion => q !== undefined);
+				
+				setScore(score);
+				setScoreMax(10);
+				setResults(reconstructedResults);
+				setQuestions(reconstructedQuestions.length > 0 ? reconstructedQuestions : initialQuestions);
+				setCompleted(true);
+				setStarted(true);
+				setAnswered(false);
+				setAiFeedback(null);
+				setGuess("");
+				return; // show completion view
 			}
-		} catch (e) {
-			// ignore and proceed to start a fresh quiz
 		}
 
-		// ensure 3 disjoint sets exist and load the set for this mode
-		const sets = getOrCreateQuizSets();
+		// Get fixed sets of questions (same for all users)
+		const sets = getQuizSets();
 		const idsForMode = sets[mode - 1] || [];
 		const picked = initialQuestions.filter((q) => idsForMode.includes(q.id));
-		let finalQs: ImageQuestion[];
-		if (picked.length < 10) {
-			const extra = pickRandomQuestions(10 - picked.length);
-			finalQs = [...picked, ...extra];
-		} else {
-			finalQs = picked;
-		}
+		const finalQs = picked.length >= 10 ? picked : initialQuestions.slice(0, 10);
 		setQuestions(finalQs);
-		setScoreMax(finalQs.length * 10);
+		setScoreMax(finalQs.length);
 		setIndex(0);
 		setGuess("");
 		setScore(0);
@@ -452,6 +471,7 @@ export default function Quiz(): JSX.Element {
 		setStarted(true);
 		setAnswered(false);
 		setAiFeedback(null);
+		setQuestionStartTime(Date.now()); // start timer for first question
 	}
 
 	return (
@@ -465,17 +485,10 @@ export default function Quiz(): JSX.Element {
 					{!started ? (
 						<div className="text-center py-12">
 							<h3 className="text-lg text-gray-200 mb-4">Choose quiz mode</h3>
-							<div className="flex gap-3 justify-center mb-6">
-								{(() => {
-									const flags = readQuizFlags();
-									return (
-										<>
-											<button onClick={() => startQuiz(1)} className="px-4 py-2 rounded-lg bg-gray-700 text-white cursor-pointer">Quiz 1 (Baseline)</button>
-											<button onClick={() => startQuiz(2)} disabled={!flags.quiz1} className={`px-4 py-2 rounded-lg ${flags.quiz1 ? 'bg-blue-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 2 (AI feedback)</button>
-											<button onClick={() => startQuiz(3)} disabled={!flags.quiz2} className={`px-4 py-2 rounded-lg ${flags.quiz2 ? 'bg-green-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 3 (Assessment)</button>
-										</>
-									);
-								})()}
+							<div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
+								<button onClick={() => startQuiz(1)} className="px-4 py-2 rounded-lg bg-gray-700 text-white cursor-pointer">Quiz 1 (Baseline)</button>
+								<button onClick={() => startQuiz(2)} disabled={!quizFlags.quiz2} className={`px-4 py-2 rounded-lg ${quizFlags.quiz2 ? 'bg-blue-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 2 (AI feedback)</button>
+								<button onClick={() => startQuiz(3)} disabled={!quizFlags.quiz3} className={`px-4 py-2 rounded-lg ${quizFlags.quiz3 ? 'bg-green-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 3 (Assessment)</button>
 							</div>
 						</div>
 					) : !completed ? (
@@ -492,7 +505,7 @@ export default function Quiz(): JSX.Element {
 							<div className="mt-4 grid gap-4">
 								<div className="flex items-center justify-between">
 									<div className="text-lg font-semibold text-gray-200">Question {index + 1} of {questions.length}</div>
-									<div className="text-lg font-semibold text-gray-200">Score: {score}/100</div>
+									<div className="text-lg font-semibold text-gray-200">Score: {score}/{scoreMax}</div>
 								</div>
 
 								<div>
@@ -548,6 +561,11 @@ export default function Quiz(): JSX.Element {
 							<div className="bg-gray-700 p-6 rounded-lg">
 								<h2 className="text-2xl font-bold">Quiz Complete</h2>
 								<p className="text-gray-300 mt-2">Final Score: {score} / {scoreMax}</p>
+								{results.length > 0 && (() => {
+									const totalTime = results.reduce((sum, r) => sum + r.timeSeconds, 0);
+									const avgTime = (totalTime / results.length).toFixed(1);
+									return <p className="text-gray-300 mt-2">Average Time: {avgTime}s</p>;
+								})()}
 							</div>
 
 						{/* Per-question results list */}
@@ -565,6 +583,7 @@ export default function Quiz(): JSX.Element {
 												</div>
 											<div className={`text-sm mt-1 ${r.correct ? 'text-green-400' : 'text-red-400'}`}>Your guess: {r.userGuess} cal</div>
 											<div className="text-sm text-gray-400">Answer: {r.answerCalories} cal</div>
+											<div className="text-sm text-gray-400">Time: {r.timeSeconds.toFixed(1)}s</div>
 											</div>
 										</li>
 									))}
