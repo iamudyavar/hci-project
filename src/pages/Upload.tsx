@@ -126,14 +126,6 @@ export default function Upload() {
 					<p className="text-gray-300 mb-6">
 						Please complete all three quizzes before you can upload food images.
 					</p>
-					<motion.a
-						href="/quiz"
-						whileHover={{ scale: 1.05 }}
-						whileTap={{ scale: 0.95 }}
-						className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-					>
-						Take Quiz
-					</motion.a>
 				</motion.div>
 			</div>
 		);
