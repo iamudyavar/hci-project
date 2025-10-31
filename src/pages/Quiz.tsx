@@ -29,7 +29,7 @@ const initialQuestions: ImageQuestion[] = [
 	{ id: 9, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/orange.jpg', answerCalories: 45 },
 	{ id: 10, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/chicken.jpg', answerCalories: 200 },
 	{ id: 11, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/cashews.jpeg', answerCalories: 160 },
-	{ id: 12, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/mozzerellasticks.jpg', answerCalories: 300 },
+	{ id: 12, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/mozzerellasticks.jpg', answerCalories: 950 },
 	{ id: 13, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/pintoficecream.jpg', answerCalories: 1000 },
 	{ id: 14, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/cucumber.jpg', answerCalories: 20 },
 	{ id: 15, image: 'https://kakduxyggmyilrovvvva.supabase.co/storage/v1/object/public/quiz_images/steak.jpg', answerCalories: 550 },
