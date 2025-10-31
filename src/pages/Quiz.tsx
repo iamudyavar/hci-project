@@ -487,8 +487,8 @@ export default function Quiz(): JSX.Element {
 							<h3 className="text-lg text-gray-200 mb-4">Choose quiz mode</h3>
 							<div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
 								<button onClick={() => startQuiz(1)} className="px-4 py-2 rounded-lg bg-gray-700 text-white cursor-pointer">Quiz 1 (Baseline)</button>
-								<button onClick={() => startQuiz(2)} disabled={!quizFlags.quiz1} className={`px-4 py-2 rounded-lg ${quizFlags.quiz1 ? 'bg-blue-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 2 (AI feedback)</button>
-								<button onClick={() => startQuiz(3)} disabled={!quizFlags.quiz2} className={`px-4 py-2 rounded-lg ${quizFlags.quiz2 ? 'bg-green-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 3 (Assessment)</button>
+								<button onClick={() => startQuiz(2)} disabled={!quizFlags.quiz2} className={`px-4 py-2 rounded-lg ${quizFlags.quiz2 ? 'bg-blue-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 2 (AI feedback)</button>
+								<button onClick={() => startQuiz(3)} disabled={!quizFlags.quiz3} className={`px-4 py-2 rounded-lg ${quizFlags.quiz3 ? 'bg-green-600 text-white cursor-pointer' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}>Quiz 3 (Assessment)</button>
 							</div>
 						</div>
 					) : !completed ? (
