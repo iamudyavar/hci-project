@@ -167,6 +167,8 @@ export default async function handler(req: any, res: any) {
             return await handleSaveQuizScore(payload, res);
           case "getQuizScores":
             return await handleGetQuizScores(payload, res);
+          case "markQuizComplete":
+            return await handleMarkQuizComplete(payload, res);
           default:
             return res.status(400).json({ message: "Unknown POST action" });
         }
@@ -590,6 +592,42 @@ async function handleSaveQuizScore(payload: any, res: any) {
     console.error('Failed to save quiz score:', err);
     return res.status(500).json({
       message: 'Failed to save quiz score',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+}
+
+// Mark a quiz as complete in the users table
+async function handleMarkQuizComplete(payload: any, res: any) {
+  const { userId, quizNumber } = payload;
+
+  if (!userId) return res.status(400).json({ message: 'User ID is required' });
+  if (typeof quizNumber !== 'number' || ![1, 2, 3].includes(quizNumber)) {
+    return res.status(400).json({ message: 'Quiz number must be 1, 2, or 3' });
+  }
+
+  try {
+    const quizColumn = `quiz${quizNumber}`;
+    console.log(`[markQuizComplete] Marking ${quizColumn} = 1 for user ${userId}`);
+    
+    const { data, error } = await supabase
+      .from('users')
+      .update({ [quizColumn]: 1 })
+      .eq('id', userId)
+      .select();
+
+    if (error) {
+      console.error('[markQuizComplete] Error:', error);
+      throw error;
+    }
+
+    console.log('[markQuizComplete] Success:', data);
+    return res.status(200).json({ success: true, data });
+
+  } catch (err: any) {
+    console.error('[markQuizComplete] Failed:', err);
+    return res.status(500).json({
+      message: 'Failed to mark quiz as complete',
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
