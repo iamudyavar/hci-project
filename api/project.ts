@@ -623,9 +623,9 @@ async function handleGetQuizScores(payload: any, res: any) {
       success: true, 
       scores: scores || null,
       quizFlags: {
-        quiz1: user?.quiz1 === 1,
-        quiz2: user?.quiz2 === 1,
-        quiz3: user?.quiz3 === 1
+        quiz1: true,                    // Quiz 1 is always unlocked
+        quiz2: user?.quiz1 === 1,       // Quiz 2 unlocks after Quiz 1 is completed
+        quiz3: user?.quiz2 === 1        // Quiz 3 unlocks after Quiz 2 is completed
       }
     });
 
