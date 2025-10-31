@@ -175,9 +175,9 @@ export default function Quiz(): JSX.Element {
 	// Fetch quiz scores from Supabase on mount - this is the source of truth
 	const [dbScores, setDbScores] = useState<any>(null);
 	const [quizFlags, setQuizFlags] = useState<{ quiz1: boolean; quiz2: boolean; quiz3: boolean }>({
-		quiz1: false,
-		quiz2: false,
-		quiz3: false
+		quiz1: true,   // Quiz 1 is always unlocked
+		quiz2: false,  // Quiz 2 locked until Quiz 1 is completed
+		quiz3: false   // Quiz 3 locked until Quiz 2 is completed
 	});
 
 	// Fetch quiz data on mount and clean up old user data
@@ -205,8 +205,12 @@ export default function Quiz(): JSX.Element {
 			.then(res => res.json())
 			.then(data => {
 				if (data.success) {
+					console.log('[Quiz] Received quiz data:', data);
 					if (data.scores) setDbScores(data.scores);
-					if (data.quizFlags) setQuizFlags(data.quizFlags);
+					if (data.quizFlags) {
+						console.log('[Quiz] Setting quizFlags:', data.quizFlags);
+						setQuizFlags(data.quizFlags);
+					}
 				}
 			})
 			.catch(err => console.error('Failed to fetch quiz scores:', err));
